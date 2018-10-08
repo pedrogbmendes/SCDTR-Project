@@ -33,6 +33,7 @@ const int sensorPin= 0; // connect sensor to analog input 0
 const int minDuration= 100; // minimumwaitbetweenblinks
 const int maxDuration= 1000; // maximum wait between blinks
 bool toggle = LOW; //initial state of LED - turn off (toggle is LOW (0))
+int ct = 0;
 
 
 
@@ -66,14 +67,29 @@ void setup()
 *     Description: 
 * 
 **************************************************************************/
-/*void debounce_toggle(int pin)
+void verify_toggle()
 {
+   boolean aux1 = debounce_toggle();
+   
+   if (aux1 == 0 && ct == 0){
+    toggle = !toggle;
+    ct++;
+   } else if (aux1 == 1) {
+    ct = 0;
+   }
+}
 
+
+
+boolean  debounce_toggle()
+{
     // debouncereturns true if the switch in the given pin
     // is closed and stable
+
+    int debounceDelay = 100;
     
-    boolean state;
     boolean previousState;
+    boolean state;
     
     // store switch state
     previousState= digitalRead(switchPin); 
@@ -94,10 +110,11 @@ void setup()
     }
     // here when the switch state has been stable 
     // longer than the  debounceperiod
+    return state;
 
 }
 
-*/
+
 
 /**************************************************************************
 *
@@ -121,8 +138,9 @@ void loop()
   int rate;
 
 
-  //verify_toggle();
-  toggle = 1;
+  verify_toggle();
+  Serial.println(toggle);
+  
   
   if(toggle) {
     //toggle is HIGH
@@ -145,8 +163,8 @@ void loop()
     R_ldr = (5.0-V_r)*(R1/V_r);
     i_lux = pow(10.0, ((log10(R_ldr)-b)/m ));
    // Serial.println("\n lux:");
-    Serial.println(V_r);
-    Serial.println(R_ldr);
+  //  Serial.println(V_r);
+   // Serial.println(R_ldr);
     Serial.println(i_lux);
 
     //verify the toggle value periodically 
@@ -157,8 +175,7 @@ void loop()
     //verify the toggle value periodically 
     //verify_toggle();
     
-    delay(rate); // wait duration dependent on light level
-    //analogWrite(ledPin, LOW); // set the LED off
+    analogWrite(ledPin, 125); // set the LED off
     //delay(rate);
 
     //verify the toggle value periodically 
@@ -166,7 +183,7 @@ void loop()
     
   }else{
     //toggle is LOW - LED is turn off 
-     //analogWrite(ledPin, 0);
+     analogWrite(ledPin, 0);
   }
   
   
