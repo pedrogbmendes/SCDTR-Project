@@ -66,19 +66,38 @@ void setup()
 *     Description: 
 * 
 **************************************************************************/
-void verify_toggle()
+/*void debounce_toggle(int pin)
 {
-   int aux1 = digitalRead(switchPin);
-   
-   if (aux1 == 0) {
-    toggle = !toggle;
-    Serial.println("\n Toggle:");
-    Serial.println(toggle);
-    delay(1000);
-   }
+
+    // debouncereturns true if the switch in the given pin
+    // is closed and stable
+    
+    boolean state;
+    boolean previousState;
+    
+    // store switch state
+    previousState= digitalRead(switchPin); 
+    
+    for(int counter=0; counter < debounceDelay; counter++) {
+      // wait for 1 millisecond
+      delay(1); 
+      
+      // read the pin
+      state = digitalRead(switchPin); 
+    
+      if( state!= previousState){
+        // reset the counter if the state changes
+        counter = 0; 
+        // and save the current state
+        previousState = state; 
+      }
+    }
+    // here when the switch state has been stable 
+    // longer than the  debounceperiod
+
 }
 
-
+*/
 
 /**************************************************************************
 *
@@ -95,14 +114,15 @@ void loop()
 
   //define varibles
   int R1 = 10000;
-  float m = log(0.2);
-  float b = log(50000); 
+  float m = (log10(4249.0/10876.0));
+  float b = log10(32625.0); 
   float V_r, R_ldr;
   double i_lux;
   int rate;
 
 
-  verify_toggle();
+  //verify_toggle();
+  toggle = 1;
   
   if(toggle) {
     //toggle is HIGH
@@ -110,39 +130,43 @@ void loop()
     rate = analogRead(sensorPin); // read the analog input
 
     //verify the toggle value periodically 
-    verify_toggle();
+    //verify_toggle();
 
     //scales the blink rate between the min and max values
-    rate = map(rate, 0, 1023, minDuration, maxDuration);  
-    rate = constrain(rate, minDuration,maxDuration); // saturate
+    //rate = map(rate, 0, 1023, minDuration, maxDuration);  
+    //rate = constrain(rate, minDuration,maxDuration); // saturate
     //Serial.println("\n Rate:");
-    //Serial.println(rate); // print rate to serial monitor
+    Serial.println(rate); // print rate to serial monitor
 
     //verify the toggle value periodically 
-    verify_toggle();
+    //verify_toggle();
 
     V_r = (5*rate)/1023.0;
-    R_ldr = (5-V_r)*(R1/V_r);
-    i_lux = pow(10.0, ((log(R_ldr)-b)/m ));
+    R_ldr = (5.0-V_r)*(R1/V_r);
+    i_lux = pow(10.0, ((log10(R_ldr)-b)/m ));
+   // Serial.println("\n lux:");
+    Serial.println(V_r);
+    Serial.println(R_ldr);
+    Serial.println(i_lux);
 
     //verify the toggle value periodically 
-    verify_toggle();
+    //verify_toggle();
     
-    analogWrite(ledPin, 255); // set the LED on
+    //analogWrite(ledPin, 255); // set the LED on
 
     //verify the toggle value periodically 
-    verify_toggle();
+    //verify_toggle();
     
     delay(rate); // wait duration dependent on light level
     //analogWrite(ledPin, LOW); // set the LED off
     //delay(rate);
 
     //verify the toggle value periodically 
-    verify_toggle();
+    //verify_toggle();
     
   }else{
     //toggle is LOW - LED is turn off 
-     analogWrite(ledPin, 0);
+     //analogWrite(ledPin, 0);
   }
   
   
