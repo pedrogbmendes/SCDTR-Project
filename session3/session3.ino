@@ -170,16 +170,21 @@ void change_led()
 {
   double i_lux;
   int rate;
-  analogWrite(ledPin, 255); 
-  rate = analogRead(sensorPin);
-  i_lux = read_lux(rate);
+  float v_rate_u[500];
+  int i;
 
+  //analogWrite(ledPin, 127); //duty cycle 50%
+  //analogWrite(ledPin, 255); //escalao
   
- // rate = analogRead(sensorPin); // read the analog input
-  //i_lux = read_lux(rate);
-  //Serial.println(rate);  
-  //Serial.println(i_lux);
-  //delay(1000);
+   for (i=0; i<500; i++){  
+    rate = analogRead(sensorPin);
+    v_rate_u[i] = rate/205.205; 
+    Serial.println(v_rate_u[i]);
+   }
+
+ 
+   analogWrite(ledPin, 0);
+   delay(100000);
 }
 
 
@@ -201,8 +206,8 @@ void loop()
 {
   //define varibles
 
-  verify_toggle(); 
-  
+  //verify_toggle(); 
+  toggle=1;
   if(toggle) {
     //toggle is HIGH
        
