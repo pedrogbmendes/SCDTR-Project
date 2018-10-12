@@ -1,4 +1,6 @@
-input_led =[4.66
+clear all;
+
+v_in =[4.66
 4.66
 4.65
 4.66
@@ -1508,7 +1510,7 @@ v_led = [3.01
 for i=1:1:500
    x(i) = i; 
 end
-plot(x,input_led);
+plot(x,v_in);
 hold on;
 plot(x,v);
 hold on;

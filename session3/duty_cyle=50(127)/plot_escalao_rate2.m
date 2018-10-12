@@ -500,7 +500,7 @@ rate = [74
 640
 ];
 
-x = zeros(1,500)
+x = zeros(1,500);
 for i = 1:1:500
     x(i) = i;  
 end

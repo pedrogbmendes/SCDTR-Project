@@ -28,6 +28,9 @@
 const int ledPin= 6; // LED connected to digital pin 6 (PWM)
 const int switchPin= 2; // LED connected to digital pin 2 (Switch state)
 const int sensorPin= 0; // connect sensor to analog input 0
+const int inputPin= 5; // connect sensor to analog input 5
+const int inputR= 4; // connect sensor to analog input 5
+
 
 // the next two lines set the min and max delay between blinks
 const int minDuration= 100; // minimumwaitbetweenblinks
@@ -169,22 +172,142 @@ double read_lux(int rate)
 void change_led()
 {
   double i_lux;
-  int rate;
-  float v_rate_u[500];
+  int rate, inputled;
+  float v_rate[100], v_in[100];
   int i;
 
+
+  //test1
   //analogWrite(ledPin, 127); //duty cycle 50%
   //analogWrite(ledPin, 255); //escalao
-  
+
+  /*
    for (i=0; i<500; i++){  
     rate = analogRead(sensorPin);
-    v_rate_u[i] = rate/205.205; 
-    Serial.println(v_rate_u[i]);
+    //inputled = analogRead(inputPin)- analogRead(inputR);
+    //inputled = analogRead(inputPin);
+    v_rate[i] = rate/205.205; 
+    v_in[i] = inputled/205.205;
+    Serial.println(v_in[i]);
+   }*/
+
+  //test2
+   //50
+   for (i=0; i<50; i++){  
+      analogWrite(ledPin, 50); //steps
+      rate = analogRead(sensorPin);
+      //inputled = analogRead(inputPin)- analogRead(inputR);
+      inputled = analogRead(inputPin);
+      v_rate[i] = rate/205.205; 
+      v_in[i] = inputled/205.205;
+      Serial.println( v_in[i]);
+   }
+   
+   analogWrite(ledPin, 0);
+   delay(1000);
+   //100
+   for (i=0; i<50; i++){  
+      analogWrite(ledPin, 100); //steps
+      rate = analogRead(sensorPin);
+      //inputled = analogRead(inputPin)- analogRead(inputR);
+      inputled = analogRead(inputPin);
+      v_rate[i] = rate/205.205; 
+      v_in[i] = inputled/205.205;
+      Serial.println( v_in[i]);
    }
 
- 
    analogWrite(ledPin, 0);
-   delay(100000);
+   delay(1000);
+   //150
+   for (i=0; i<50; i++){  
+      analogWrite(ledPin, 150); //steps
+      rate = analogRead(sensorPin);
+      //inputled = analogRead(inputPin)- analogRead(inputR);
+      inputled = analogRead(inputPin);
+      v_rate[i] = rate/205.205; 
+      v_in[i] = inputled/205.205;
+      Serial.println( v_in[i]);
+   }
+
+   analogWrite(ledPin, 0);
+   delay(1000);
+   //200
+   for (i=0; i<50; i++){  
+      analogWrite(ledPin, 200); //steps
+      rate = analogRead(sensorPin);
+      //inputled = analogRead(inputPin)- analogRead(inputR);
+      inputled = analogRead(inputPin);
+      v_rate[i] = rate/205.205; 
+      v_in[i] = inputled/205.205;
+      Serial.println( v_in[i]);
+   }
+
+   analogWrite(ledPin, 0);
+   delay(1000);
+   //250
+   for (i=0; i<50; i++){  
+      analogWrite(ledPin, 250); //steps
+      rate = analogRead(sensorPin);
+      //inputled = analogRead(inputPin)- analogRead(inputR);
+      inputled = analogRead(inputPin);
+      v_rate[i] = rate/205.205; 
+      v_in[i] = inputled/205.205;
+      Serial.println( v_in[i]);
+   }
+
+   analogWrite(ledPin, 0);
+   delay(1000);
+   //200
+   for (i=0; i<50; i++){  
+      analogWrite(ledPin, 200); //steps
+      rate = analogRead(sensorPin);
+      //inputled = analogRead(inputPin)- analogRead(inputR);
+      inputled = analogRead(inputPin);
+      v_rate[i] = rate/205.205; 
+      v_in[i] = inputled/205.205;
+      Serial.println( v_in[i]);
+   }
+
+   analogWrite(ledPin, 0);
+   delay(1000);
+   //150
+   for (i=0; i<50; i++){  
+      analogWrite(ledPin, 150); //steps
+      rate = analogRead(sensorPin);
+      //inputled = analogRead(inputPin)- analogRead(inputR);
+      inputled = analogRead(inputPin);
+      v_rate[i] = rate/205.205; 
+      v_in[i] = inputled/205.205;
+      Serial.println( v_in[i]);
+   }
+
+   analogWrite(ledPin, 0);
+   delay(1000);
+   //100
+   for (i=0; i<50; i++){  
+      analogWrite(ledPin, 100); //steps
+      rate = analogRead(sensorPin);
+      //inputled = analogRead(inputPin)- analogRead(inputR);
+      inputled = analogRead(inputPin);
+      v_rate[i] = rate/205.205; 
+      v_in[i] = inputled/205.205;
+      Serial.println( v_in[i]);
+   }
+
+   analogWrite(ledPin, 0);
+   delay(1000);
+   //50
+   for (i=0; i<50; i++){  
+      analogWrite(ledPin, 50); //steps
+      rate = analogRead(sensorPin);
+      //inputled = analogRead(inputPin)- analogRead(inputR);
+      inputled = analogRead(inputPin);
+      v_rate[i] = rate/205.205; 
+      v_in[i] = inputled/205.205;
+      Serial.println( v_in[i]);
+   }
+  analogWrite(ledPin, 0);
+  delay(100000);
 }
 
 
