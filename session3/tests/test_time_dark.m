@@ -904,6 +904,7 @@ v = s(1:2:end,:);  % odd matrix
 t = s(2:2:end,:);  % even matrix
 t = t * 10^(-6);
 
+figure(1);
 plot(t,v);
 
 
@@ -938,140 +939,16 @@ tauy(7) = v7(1) - ( v7(1)-stab7 )*0.37; %150
 tauy(8) = v8(1) - ( v8(1)-stab8 )*0.37; %100
 tauy(9) = v9(1) - ( v9(1)-stab9 )*0.37; %50
 
-% f1 = fit (t(1:50),v1,fittype('a-b*exp(-c*x)'), 'StartPoint',[[ones(size(t(1:50))), -exp(-t(1:50))]\v1; 1]);
-% %tau = find( v1 <= tauy(1) + 0.1 & v1 >= tauy(1) - 0.1 );
-% %plot(f1);
-% hold on;
-% %plot(t(1:50),aux );
-% a = f1.a;
-% b = f1.b;
-% c = f1.c;
-% 
-% syms x;
-% eqn = a-b*exp(-c*x) == tauy(1);
-% tau(1) = double(solve(eqn, x));
-% 
-% f2 = fit (t(51:100),v2,fittype('a-b*exp(-c*x)'), 'StartPoint',[[ones(size(t(51:100))), -exp(-t(51:100))]\v2; 1]);
-% %tau = find( v1 <= tauy(1) + 0.1 & v1 >= tauy(1) - 0.1 );
-% %plot(f2);
-% hold on;
-% %aux(1:50) = tauy(1);
-% %plot(t(51, 100),aux );
-% a = f2.a;
-% b = f2.b;
-% c = f2.c;
-% 
-% syms x;
-% eqn = a-b*exp(-c*x) == tauy(2);
-% tau(2) = double(solve(eqn, x) -t(50)) ;
-% 
-% f3 = fit (t(101:150),v3,fittype('a-b*exp(-c*x)'), 'StartPoint',[[ones(size(t(101:150))), -exp(-t(101:150))]\v3; 1]);
-% %tau = find( v1 <= tauy(1) + 0.1 & v1 >= tauy(1) - 0.1 );
-% %plot(f1);
-% hold on;
-% %aux(1:50) = tauy(1);
-% %plot(t(1:50),aux );
-% a = f3.a;
-% b = f3.b;
-% c = f3.c;
-% 
-% syms x;
-% eqn = a-b*exp(-c*x) == tauy(3);
-% tau(3) = double(solve(eqn, x) - t(100));
-% 
-% f4 = fit (t(151:200),v4,fittype('a-b*exp(-c*x)'), 'StartPoint',[[ones(size(t(151:200))), -exp(-t(151:200))]\v4; 1]);
-% %tau = find( v1 <= tauy(1) + 0.1 & v1 >= tauy(1) - 0.1 );
-% % plot(f1);
-% % hold on;
-% % aux(1:50) = tauy(1);
-% % plot(t(1:50),aux );
-% a = f4.a;
-% b = f4.b;
-% c = f4.c;
-% 
-% syms x;
-% eqn = a-b*exp(-c*x) == tauy(4);
-% tau(4) = double(solve(eqn, x) - t(150));
-% 
-% f5 = fit (t(201:250),v5,fittype('a-b*exp(-c*x)'), 'StartPoint',[[ones(size(t(201:250))), -exp(-t(201:250))]\v5; 1]);
-% %tau = find( v1 <= tauy(1) + 0.1 & v1 >= tauy(1) - 0.1 );
-% figure;
-% plot(f5);
-% hold on;
-% % aux(1:50) = tauy(1);
-% %plot(t(201:250), v5 );
-% a = f5.a;
-% b = f5.b;
-% c = f5.c;
-% 
-% syms x;
-% eqn = a-b*exp(-c*x) == tauy(5);
-% tau(5) = double(solve(eqn, x) - t(200));
-% 
-% f6 = fit (t(251:300),v6,fittype('a+b*exp(-c*x)'), 'StartPoint',[[ones(size(t(251:300))), -exp(-t(251:300))]\v6; 1]);
-% %tau = find( v1 <= tauy(1) + 0.1 & v1 >= tauy(1) - 0.1 );
-% % plot(f1);
-% % hold on;
-% % aux(1:50) = tauy(1);
-% % plot(t(1:50),aux );
-% a = f6.a;
-% b = f6.b;
-% c = f6.c;
-% 
-% syms x;
-% eqn = a+b*exp(-c*x) == tauy(6);
-% tau(6) = double(solve(eqn, x) - t(250));
-% 
-% f7 = fit (t(301:350),v7,fittype('a+b*exp(-c*x)'), 'StartPoint',[[ones(size(t(301:350))), -exp(-t(301:350))]\v7; 1]);
-% %tau = find( v1 <= tauy(1) + 0.1 & v1 >= tauy(1) - 0.1 );
-% % plot(f1);
-% % hold on;
-% % aux(1:50) = tauy(1);
-% % plot(t(1:50),aux );
-% a = f7.a;
-% b = f7.b;
-% c = f7.c;
-% 
-% syms x;
-% eqn = a+b*exp(-c*x) == tauy(7);
-% tau(7) = double(solve(eqn, x) - t(300));
-% 
-% 
-% f8 = fit (t(351:400),v8,fittype('a+b*exp(-c*x)'), 'StartPoint',[[ones(size(t(351:400))), -exp(-t(351:400))]\v8; 1]);
-% %tau = find( v1 <= tauy(1) + 0.1 & v1 >= tauy(1) - 0.1 );
-% % plot(f1);
-% % hold on;
-% % aux(1:50) = tauy(1);
-% % plot(t(1:50),aux );
-% a = f8.a;
-% b = f8.b;
-% c = f8.c;
-% 
-% syms x;
-% eqn = a+b*exp(-c*x) == tauy(8);
-% tau(8) = double(solve(eqn, x) - t(350));
-% 
-% f9 = fit (t(401:450),v9,fittype('a-b*exp(-c*x)'), 'StartPoint',[[ones(size(t(401:450))), -exp(-t(401:450))]\v9; 1]);
-% %tau = find( v1 <= tauy(1) + 0.1 & v1 >= tauy(1) - 0.1 );
-%  plot(f9);
-% hold on;
-% % aux(1:50) = tauy(1);
-% plot(t(401:450),v9 );
-% a = f9.a;
-% b = f9.b;
-% c = f9.c;
-% 
-% syms x;
-% eqn = a-b*exp(-c*x) == tauy(9);
-% tau(9) = double(solve(eqn, x) - t(400));
-% 
 
+
+%50
 pt1 = find( v1 <= tauy(1));
 pt1 = pt1(end);
 m = (v1(pt1+1)-v1(pt1))/(t(pt1+1)-t(pt1));
 b = v1(pt1) - m*(t(pt1));
 tau(1) = (tauy(1) - b)/m - t(1);
 
+%100
 pt1 = find( v2 <= tauy(2));
 pt1 = pt1(end);
 pt1t = pt1 + 50;
@@ -1079,6 +956,7 @@ m = (v2(pt1+1)-v2(pt1))/(t(pt1t+1)-t(pt1t));
 b = v2(pt1) - m*(t(pt1t));
 tau(2) = (tauy(2) - b)/m - t(51);
 
+%150
 pt1 = find( v3 <= tauy(3));
 pt1 = pt1(end);
 pt1t = pt1 + 100;
@@ -1086,38 +964,96 @@ m = (v3(pt1+1)-v3(pt1))/(t(pt1t+1)-t(pt1t));
 b = v3(pt1) - m*(t(pt1t));
 tau(3) = (tauy(3) - b)/m - t(101);
 
-pt1 = find( v1 <= tauy(1));
+%200
+pt1 = find( v4 <= tauy(4));
 pt1 = pt1(end);
-m = (v1(pt1+1)-v1(pt1))/(t(pt1+1)-t(pt1));
-b = v1(pt1) - m*(t(pt1));
-tau(1) = (tauy(1) - b)/m;
+pt1t = pt1 + 150;
+m = (v4(pt1+1)-v4(pt1))/(t(pt1t+1)-t(pt1t));
+b = v4(pt1) - m*(t(pt1t));
+tau(4) = (tauy(4) - b)/m - t(151);
 
-pt1 = find( v1 <= tauy(1));
+%255
+pt1 = find( v5 <= tauy(5));
 pt1 = pt1(end);
-m = (v1(pt1+1)-v1(pt1))/(t(pt1+1)-t(pt1));
-b = v1(pt1) - m*(t(pt1));
-tau(1) = (tauy(1) - b)/m;
+pt1t = pt1 + 200;
+m = (v5(pt1+1)-v5(pt1))/(t(pt1t+1)-t(pt1t));
+b = v5(pt1) - m*(t(pt1t));
+tau(5) = (tauy(5) - b)/m - t(201);
 
-pt1 = find( v1 <= tauy(1));
+%200
+pt1 = find( v6 >= tauy(6));
 pt1 = pt1(end);
-m = (v1(pt1+1)-v1(pt1))/(t(pt1+1)-t(pt1));
-b = v1(pt1) - m*(t(pt1));
-tau(1) = (tauy(1) - b)/m;
+pt1t = pt1 + 250;
+m = (v6(pt1+1)-v6(pt1))/(t(pt1t+1)-t(pt1t));
+b = v6(pt1) - m*(t(pt1t));
+tau(6) = (tauy(6) - b)/m - t(251);
 
-pt1 = find( v1 <= tauy(1));
+%150
+pt1 = find( v7 >= tauy(7));
 pt1 = pt1(end);
-m = (v1(pt1+1)-v1(pt1))/(t(pt1+1)-t(pt1));
-b = v1(pt1) - m*(t(pt1));
-tau(1) = (tauy(1) - b)/m;
+pt1t = pt1 + 300;
+m = (v7(pt1+1)-v7(pt1))/(t(pt1t+1)-t(pt1t));
+b = v7(pt1) - m*(t(pt1t));
+tau(7) = (tauy(7) - b)/m - t(301);
 
-pt1 = find( v1 <= tauy(1));
+%100
+pt1 = find( v8 >= tauy(8));
 pt1 = pt1(end);
-m = (v1(pt1+1)-v1(pt1))/(t(pt1+1)-t(pt1));
-b = v1(pt1) - m*(t(pt1));
-tau(1) = (tauy(1) - b)/m;
+pt1t = pt1 + 350;
+m = (v8(pt1+1)-v8(pt1))/(t(pt1t+1)-t(pt1t));
+b = v8(pt1) - m*(t(pt1t));
+tau(8) = (tauy(8) - b)/m - t(351);
 
-pt1 = find( v1 <= tauy(1));
+%50
+pt1 = find( v9 >= tauy(9));
 pt1 = pt1(end);
-m = (v1(pt1+1)-v1(pt1))/(t(pt1+1)-t(pt1));
-b = v1(pt1) - m*(t(pt1));
-tau(1) = (tauy(1) - b)/m;
+pt1t = pt1 + 400;
+m = (v9(pt1+1)-v9(pt1))/(t(pt1t+1)-t(pt1t));
+b = v9(pt1) - m*(t(pt1t));
+tau(9) = (tauy(9) - b)/m - t(401);
+
+disp(tau);
+
+pwm = [50 100 150 200 255];
+figure(2);
+plot(pwm, tau(1:5),'.');
+figure(3);
+
+plot(pwm(1:4), flip(tau(6:9)),'.');
+f2 = fit (t(51:100),v2,fittype('a-b*exp(-c*x)'), 'StartPoint',[[ones(size(t(51:100))), -exp(-t(51:100))]\v2; 1]);
+f2 = fit (pwm', tau(1:5)','exp1');
+figure(2);
+hold on;
+plot(f2)
+
+m = -0.363;
+b = log10(20515.0); 
+
+R_ldr(1) = (5.0-stab1)*(10000/stab1);
+i_lux(1) = power(10.0, ((log10(R_ldr(1))-b)/m ));
+
+R_ldr(2) = (5.0-stab2)*(10000/stab2);
+i_lux(2) = power(10.0, ((log10(R_ldr(2))-b)/m ));
+
+R_ldr(3) = (5.0-stab3)*(10000/stab3);
+i_lux(3) = power(10.0, ((log10(R_ldr(3))-b)/m ));
+
+R_ldr(4) = (5.0-stab4)*(10000/stab4);
+i_lux(4) = power(10.0, ((log10(R_ldr(4))-b)/m ));
+
+R_ldr(5) = (5.0-stab5)*(10000/stab5);
+i_lux(5) = power(10.0, ((log10(R_ldr(5))-b)/m ));
+
+gain(1) = i_lux(1)/ 50;%50
+gain(2) = i_lux(2)/ 100;%100
+gain(3) = i_lux(3)/ 150;%150
+gain(4) = i_lux(4)/ 200;%200
+gain(5) = i_lux(5)/ 250;%255
+ 
+f3 = fit (pwm', i_lux','poly1')
+figure(4);
+
+plot(pwm, i_lux,'x');
+hold on;
+plot(f3);
+axis([0 260 0 250]);

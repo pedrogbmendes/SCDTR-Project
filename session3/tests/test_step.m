@@ -940,6 +940,6 @@ disp(tau);
 for i=1:1:450
    x(i) = i; 
 end
-plot(x,v_in);
+%plot(x,v_in);
 hold on;
 plot(x,v);

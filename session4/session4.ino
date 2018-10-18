@@ -256,8 +256,12 @@ float calculate_gain(int pwm_value)
 *     Description: 
 * 
 **************************************************************************/
-float calculate_t_const(float i_lux)
+float calculate_t_const(int pwm_value)
 {
+
+  return (0.0106 + 0.028*pow(10.0, (-0.009*pwm_value)) );
+
+  /*
   int R = 10000;
   double C = 1* pow(10.0,-6);
   float R_ldr, V_r;
@@ -265,7 +269,7 @@ float calculate_t_const(float i_lux)
 
   R_ldr = convert_lux_R(i_lux);
   return ((R*R_ldr)/(R+R_ldr))*C;
-  
+  */
 }
 
 
