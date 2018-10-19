@@ -85,7 +85,6 @@ void verify_toggle()
    }
 }
 
-
 /**************************************************************************
 *
 *     Function: debounce_toggle()
@@ -160,6 +159,21 @@ double read_lux(int rate)
   
 }
 
+double convert_V_lux(float V_r){
+  int R1 = 10000;
+  float R_ldr;
+  double i_lux;
+
+  //Calibration of LDR
+  float m = -0.363;
+  float b = log10(20515.0); 
+  
+  R_ldr = (5.0-V_r)*(R1/V_r);
+  i_lux = pow(10.0, ((log10(R_ldr)-b)/m ));
+
+  return i_lux;
+}
+
 
 /**************************************************************************
 *
@@ -224,6 +238,7 @@ void change_led(int u)
   analogWrite(ledPin, u); 
   v_read = analogRead(sensorPin);
   i_lux = read_lux(v_read);
+  Serial.println(i_lux);
      
 }
 
@@ -322,7 +337,35 @@ float simulator(float ill_des, float v_i, unsigned long t_ini)
   return y;
 }
 
+float feedback_control(float err)
+{
+  int K = 100;
+  
+  return err * K;    
+}
 
+
+int controller (float ill_des, float t_init, float v_obs, float v_i){
+  
+  float v_des, err, fdbk;
+  int u_fb, u_ff;
+
+  v_des = simulator(ill_des, v_i, t_init);
+  u_ff = feedforward_control(ill_des);
+  
+  err = v_des - v_obs;
+  fdbk = feedback_control(err);
+  
+  u_fb = feedforward_control(convert_V_lux(fdbk));
+  Serial.println("U_FB");
+  Serial.println(err);
+  Serial.println(" ");
+
+  Serial.println("U_FF");
+  Serial.println(err);
+  Serial.println(" ");
+  return u_fb + u_ff;
+}
 /**************************************************************************
 *
 *     Function: loop()
@@ -339,14 +382,16 @@ void loop()
 
   
   int u_des;
+  float v_read;
    
   //verify_toggle(); 
   toggle=1;
   if(toggle) {
     //toggle is HIGH
 
-    u_des = feedforward_control(50);
-    simulator(50, 0,t_init);
+    v_read = analogRead(sensorPin)/205.205;
+    u_des = controller(50, t_init, v_read, 0); 
+    //Serial.println(v_read);
     change_led(u_des);
     
 
