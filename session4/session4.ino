@@ -48,6 +48,7 @@ int prescale = 1; //fastest possible
 //PI variables
 float y_ant = 0, i_ant = 0, e_ant = 0;
 
+float gain;
 
 
 
@@ -67,6 +68,9 @@ void setup()
   pinMode(switchPin, INPUT_PULLUP);
   Serial.begin(9600); // initializeSerial
   TCCR1B = (TCCR1B & mask) | prescale;
+
+  gain = initialization();
+  
 }
 
 
@@ -85,19 +89,24 @@ float initialization(){
 
   int v0, v1;
   float i0, i1, i, gain;
-  
+
+  delay(50);
   v0 = analogRead(sensorPin);
   i0 = read_lux(v0);
-  
-  analogWrite(ledPin, 255); 
-  v1 = analogRead(sensorPin);
-  i1 = read_lux(v0);
 
+  analogWrite(ledPin, 255); 
+  delay(1000);
+  v1 = analogRead(sensorPin);
+  i1 = read_lux(v1);
+    
   i = i1 - i0;
   gain = i/255.0;
   
   return gain;
 }
+
+
+
 /**************************************************************************
 *
 *     Function: verify_toggle()
@@ -281,7 +290,7 @@ void change_led(int u)
   analogWrite(ledPin, u); 
   v_read = analogRead(sensorPin);
   i_lux = read_lux(v_read); 
-  Serial.println(i_lux);    
+  //Serial.println(i_lux);    
 }
 
 
@@ -315,7 +324,6 @@ float calculate_gain(int pwm_value)
 **************************************************************************/
 float calculate_t_const(int pwm_value)
 {
-
   return (0.0106 + 0.028*pow(10.0, (-0.009*pwm_value)) );
 
   /*
@@ -343,7 +351,10 @@ float calculate_t_const(int pwm_value)
 int feedforward_control(float ill_des)
 {
   
-  float pwm_des = (ill_des + 39.48) / 0.8511;
+  //float pwm_des = (ill_des + 39.48) / 0.8511;
+  
+  float pwm_des = ill_des / gain;
+  
   return int(pwm_des);
 }
 
@@ -362,20 +373,17 @@ int feedforward_control(float ill_des)
 float simulator(float ill_des, float v_i, unsigned long t_ini)
 {
   int R1 = 10000;
-  float pwm_des;
+  int pwm_des;
   float gain, tau, R2;
   float v_f, y ;
-  
-  pwm_des= (ill_des + 39.48) / 0.8511;
-  //gain = calculate_gain(int (pwm_des) );
-  tau = calculate_t_const(ill_des);
 
+  tau = calculate_t_const(ill_des);
 
   R2 = convert_lux_R(ill_des);
   v_f = convert_R_V(R2);
 
   y = v_f - (v_f - v_i)*exp(-((micros()-t_ini)/tau)*pow(10.0,-6));
- 
+
   return y;
 }
 
@@ -395,7 +403,7 @@ int feedback_control(float lux_des, float lux_obs)
 {
   float kp = 2 , ki = 30;
   float k1, k2, p, i, e, y, u;
-  float T = 0.059; //3*constant of time(correspond to 95% of the response) for 50 lux (tau(50lux) = 0.0196)
+  float T = 0.02; //3*constant of time(correspond to 95% of the response) for 50 lux (tau(50lux) = 0.0196)
   float b = 0.5;
  
   float err;
@@ -415,7 +423,7 @@ int feedback_control(float lux_des, float lux_obs)
   i = i_ant + k2*(e + e_ant);
 
   u = p + i;
-  
+
   y_ant = lux_obs;
   i_ant = i;
   e_ant = err;
@@ -441,11 +449,11 @@ int controller (float ill_des, float t_init, float v_obs, float v_i){
   int u_fb, u_ff, u;
   double lux_des, lux_obs; 
 
-  delay(59);
+  delay(200);
 
   v_des = simulator(ill_des, v_i, t_init);
   u_ff = feedforward_control(ill_des);
-  
+   
   lux_des = convert_V_lux(v_des);
   lux_obs = convert_V_lux(v_obs);
 
@@ -457,7 +465,7 @@ int controller (float ill_des, float t_init, float v_obs, float v_i){
   }else if(u<0){
     u = 0;   
   }
-  //Serial.println(u_fb);
+  Serial.println(u);
   return u;
 }
 
@@ -482,7 +490,6 @@ void loop()
   float v_read;
   float gain;
 
-  //gain = initialization();
   
   //verify_toggle(); 
 
