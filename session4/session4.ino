@@ -39,15 +39,15 @@ bool toggle = LOW; //initial state of LED - turn off (toggle is LOW (0))
 int ct = 0;
 
 //time
-unsigned long t_init = micros();
+unsigned long t_init;
 
 //frequency
 const byte mask= B11111000; // mask bits that are not prescale
 int prescale = 1; //fastest possible
 
 //PI variables
-float y_ant = 0, i_ant = 0, e_ant = 0;
-
+float y_ant = 0, i_ant = 0, e_ant = 0, u_ant = 0;
+float u_wdp = 0;
 float gain;
 
 
@@ -70,6 +70,7 @@ void setup()
   TCCR1B = (TCCR1B & mask) | prescale;
 
   gain = initialization();
+  t_init = micros();
   
 }
 
@@ -87,19 +88,19 @@ void setup()
 **************************************************************************/
 float initialization(){
 
-  int v0, v1;
-  float i0, i1, i, gain;
+  int v0, v1, v;
+  float i, gain;
 
   delay(50);
   v0 = analogRead(sensorPin);
-  i0 = read_lux(v0);
 
   analogWrite(ledPin, 255); 
   delay(1000);
   v1 = analogRead(sensorPin);
-  i1 = read_lux(v1);
-    
-  i = i1 - i0;
+
+  v = v0 - v1;
+  i = read_lux(v);
+  
   gain = i/255.0;
   
   return gain;
@@ -290,25 +291,10 @@ void change_led(int u)
   analogWrite(ledPin, u); 
   v_read = analogRead(sensorPin);
   i_lux = read_lux(v_read); 
-  //Serial.println(i_lux);    
+  Serial.println(i_lux);    
 }
 
 
-
-/**************************************************************************
-*
-*     Function: calculate_gain()
-*     
-*     Arguments: No arguments
-*     Return value: No return value
-*     
-*     Description: 
-* 
-**************************************************************************/
-float calculate_gain(int pwm_value)
-{
-  return 0.8511*pwm_value - 39.48;
-}
 
 
 
@@ -401,10 +387,11 @@ float simulator(float ill_des, float v_i, unsigned long t_ini)
 **************************************************************************/
 int feedback_control(float lux_des, float lux_obs)
 {
-  float kp = 2 , ki = 30;
+  float kp = 0.5 , ki = 50;
   float k1, k2, p, i, e, y, u;
-  float T = 0.02; //3*constant of time(correspond to 95% of the response) for 50 lux (tau(50lux) = 0.0196)
+  float T = .059; //3*constant of time(correspond to 95% of the response) for 50 lux (tau(50lux) = 0.0196)
   float b = 0.5;
+  float u_sat;
  
   float err;
   
@@ -414,15 +401,27 @@ int feedback_control(float lux_des, float lux_obs)
   err = lux_des - lux_obs;
 
   //deadzone
-  //if(err <0 && abs(err)<3) err = 0;
+  if(abs(err)<10){
+    err = 0;
+  }
   
   //proportional
   p = (k1*lux_des) - (kp*lux_obs); 
 
   //integral
-  i = i_ant + k2*(e + e_ant);
+  i = i_ant + k2*(e + e_ant) + u_wdp;
 
   u = p + i;
+
+  if(u > 255){
+    u_sat = 255;
+  }else if(u<0){
+    u_sat = 0;   
+  }else{
+    u_sat = u;
+  }
+
+  u_wdp = u_sat - u;
 
   y_ant = lux_obs;
   i_ant = i;
@@ -448,24 +447,35 @@ int controller (float ill_des, float t_init, float v_obs, float v_i){
   float v_des, err, fdbk;
   int u_fb, u_ff, u;
   double lux_des, lux_obs; 
-
-  delay(200);
+  
 
   v_des = simulator(ill_des, v_i, t_init);
-  u_ff = feedforward_control(ill_des);
+  u_ff = 0.5 * feedforward_control(ill_des);
    
   lux_des = convert_V_lux(v_des);
   lux_obs = convert_V_lux(v_obs);
-
+  err = lux_des - lux_obs;
   u_fb = feedback_control(lux_des,lux_obs);
 
   u = u_fb + u_ff;
+//Serial.println(u);
+
+  //flickering effect  
+  if(u_ant <= 0 && u <= 30){
+        u = 0;
+  } 
+
+ 
+  //saturation
   if(u > 255){
     u = 255;
   }else if(u<0){
     u = 0;   
   }
-  Serial.println(u);
+
+  
+  u_ant = u;
+
   return u;
 }
 
@@ -497,6 +507,8 @@ void loop()
   toggle=1;
   if(toggle) {
     //toggle is HIGH
+
+      delay(59);
 
     v_read = analogRead(sensorPin)/205.205;
     u_des = controller(100, t_init, v_read, 0); 
