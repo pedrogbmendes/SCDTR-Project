@@ -33,15 +33,23 @@ const int inputPin= 5; // connect sensor to analog input 5
 // the next two lines set the min and max delay between blinks
 const int minDuration= 100; // minimumwaitbetweenblinks
 const int maxDuration= 1000; // maximum wait between blinks
+
+//toggle
 bool toggle = LOW; //initial state of LED - turn off (toggle is LOW (0))
 int ct = 0;
 
+//time
 unsigned long t_init = micros();
 
-const byte mask= B11111000;
-// mask bits that are not prescale
-int prescale = 1;
-//fastest possible
+//frequency
+const byte mask= B11111000; // mask bits that are not prescale
+int prescale = 1; //fastest possible
+
+//PI variables
+float y_ant = 0, i_ant = 0, e_ant = 0;
+
+
+
 
 /**************************************************************************
 *
@@ -63,6 +71,33 @@ void setup()
 
 
 
+/**************************************************************************
+*
+*     Function: initialization()
+*     
+*     Arguments: No arguments
+*     Return value: No return value
+*     
+*     Description: 
+* 
+**************************************************************************/
+float initialization(){
+
+  int v0, v1;
+  float i0, i1, i, gain;
+  
+  v0 = analogRead(sensorPin);
+  i0 = read_lux(v0);
+  
+  analogWrite(ledPin, 255); 
+  v1 = analogRead(sensorPin);
+  i1 = read_lux(v0);
+
+  i = i1 - i0;
+  gain = i/255.0;
+  
+  return gain;
+}
 /**************************************************************************
 *
 *     Function: verify_toggle()
@@ -149,16 +184,24 @@ double read_lux(int rate)
     
   
   V_r = rate/205.205;
-  R_ldr = (5.0-V_r)*(R1/V_r);
-  i_lux = pow(10.0, ((log10(R_ldr)-b)/m ));
-  // Serial.println("\n lux:");
-  // Serial.println(R_ldr);
-  //Serial.println(i_lux);
-
+  i_lux = convert_V_lux(V_r);
+  
   return i_lux;
   
 }
 
+
+
+/**************************************************************************
+*
+*     Function: convert_V_lux(float V_r)
+*     
+*     Arguments: No arguments
+*     Return value: state of the toggle
+*     
+*     Description: 
+* 
+**************************************************************************/
 double convert_V_lux(float V_r){
   int R1 = 10000;
   float R_ldr;
@@ -237,9 +280,8 @@ void change_led(int u)
   //test1
   analogWrite(ledPin, u); 
   v_read = analogRead(sensorPin);
-  i_lux = read_lux(v_read);
-  Serial.println(i_lux);
-     
+  i_lux = read_lux(v_read); 
+  Serial.println(i_lux);    
 }
 
 
@@ -337,35 +379,91 @@ float simulator(float ill_des, float v_i, unsigned long t_ini)
   return y;
 }
 
-float feedback_control(float err)
+
+
+/**************************************************************************
+*
+*     Function: feedback_control(float err)
+*     
+*     Arguments: No arguments
+*     Return value: No return value
+*     
+*     Description: 
+* 
+**************************************************************************/
+int feedback_control(float lux_des, float lux_obs)
 {
-  int K = 100;
+  float kp = 2 , ki = 30;
+  float k1, k2, p, i, e, y, u;
+  float T = 0.059; //3*constant of time(correspond to 95% of the response) for 50 lux (tau(50lux) = 0.0196)
+  float b = 0.5;
+ 
+  float err;
   
-  return err * K;    
+  k1 = kp * b;
+  k2 = kp * ki * (T/2);
+  
+  err = lux_des - lux_obs;
+
+  //deadzone
+  //if(err <0 && abs(err)<3) err = 0;
+  
+  //proportional
+  p = (k1*lux_des) - (kp*lux_obs); 
+
+  //integral
+  i = i_ant + k2*(e + e_ant);
+
+  u = p + i;
+  
+  y_ant = lux_obs;
+  i_ant = i;
+  e_ant = err;
+  
+  return int (u);    
 }
 
 
+
+/**************************************************************************
+*
+*     Function: controller (float ill_des, float t_init, float v_obs, float v_i)
+*     
+*     Arguments: No arguments
+*     Return value: No return value
+*     
+*     Description: 
+* 
+**************************************************************************/
 int controller (float ill_des, float t_init, float v_obs, float v_i){
   
   float v_des, err, fdbk;
-  int u_fb, u_ff;
+  int u_fb, u_ff, u;
+  double lux_des, lux_obs; 
+
+  delay(59);
 
   v_des = simulator(ill_des, v_i, t_init);
   u_ff = feedforward_control(ill_des);
   
-  err = v_des - v_obs;
-  fdbk = feedback_control(err);
-  
-  u_fb = feedforward_control(convert_V_lux(fdbk));
-  Serial.println("U_FB");
-  Serial.println(err);
-  Serial.println(" ");
+  lux_des = convert_V_lux(v_des);
+  lux_obs = convert_V_lux(v_obs);
 
-  Serial.println("U_FF");
-  Serial.println(err);
-  Serial.println(" ");
-  return u_fb + u_ff;
+  u_fb = feedback_control(lux_des,lux_obs);
+
+  u = u_fb + u_ff;
+  if(u > 255){
+    u = 255;
+  }else if(u<0){
+    u = 0;   
+  }
+  //Serial.println(u_fb);
+  return u;
 }
+
+
+
+
 /**************************************************************************
 *
 *     Function: loop()
@@ -379,18 +477,22 @@ int controller (float ill_des, float t_init, float v_obs, float v_i){
 void loop()
 {
   //define varibles
-
-  
+ 
   int u_des;
   float v_read;
-   
+  float gain;
+
+  //gain = initialization();
+  
   //verify_toggle(); 
+
+ 
   toggle=1;
   if(toggle) {
     //toggle is HIGH
 
     v_read = analogRead(sensorPin)/205.205;
-    u_des = controller(50, t_init, v_read, 0); 
+    u_des = controller(100, t_init, v_read, 0); 
     //Serial.println(v_read);
     change_led(u_des);
     
