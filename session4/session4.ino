@@ -391,7 +391,7 @@ int feedback_control(float lux_des, float lux_obs)
   float kp = 55.8 , ki = 72;
   float k1, k2, p, i, e, y, u;
   float T = .059; //3*constant of time(correspond to 95% of the response) for 50 lux (tau(50lux) = 0.0196)
-  float b = 0.5;
+  float b = 0.9;
   float u_sat;
  
   float err;
@@ -451,25 +451,28 @@ int controller (float ill_des, float t_init, float v_obs, float v_i){
   
 
   v_des = simulator(ill_des, v_i, t_init);
-  u_ff =  0 * feedforward_control(ill_des);
+  u_ff =  0.1*feedforward_control(ill_des);
    
   lux_des = convert_V_lux(v_des);
   lux_obs = convert_V_lux(v_obs);
-  Serial.println(v_obs);
+ 
   err = lux_des - lux_obs;
   u_fb =  feedback_control(v_des,v_obs);
 
   u = u_fb + u_ff;
+  
 
   //flickering effect  
-  if(u_ant <= 0 && u <= 30){
+  if(u_ant <= 0 && u <= 3){
         u = 0;
   } 
 
   if(abs(err)<2){
     u = u_ant;
   }
+     Serial.println(lux_obs);
 
+   Serial.println(u);
  
   //saturation
   if(u > 255){
@@ -516,7 +519,7 @@ void loop()
       delay(59);
 
     v_read = analogRead(sensorPin)/205.205;
-    u_des = controller(30, t_init, v_read, 0); 
+    u_des = controller(50, t_init, v_read, 0); 
     //Serial.println(v_read);
     change_led(u_des);
     
