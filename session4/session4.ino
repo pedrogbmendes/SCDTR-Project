@@ -98,8 +98,8 @@ float initialization(){
   delay(1000);
   v1 = analogRead(sensorPin);
 
-  v = v0 - v1;
-  i = read_lux(v);
+  i = read_lux(v1) - read_lux(v0);
+  
   
   gain = i/255.0;
   
@@ -291,7 +291,7 @@ void change_led(int u)
   analogWrite(ledPin, u); 
   v_read = analogRead(sensorPin);
   i_lux = read_lux(v_read); 
-  Serial.println(i_lux);    
+  //Serial.println(i_lux);    
 }
 
 
@@ -337,9 +337,10 @@ float calculate_t_const(int pwm_value)
 int feedforward_control(float ill_des)
 {
   
-  //float pwm_des = (ill_des + 39.48) / 0.8511;
+  float pwm_des = (ill_des + 20.8) / 0.6235;
   
-  float pwm_des = ill_des / gain;
+  //float pwm_des = ill_des / gain;
+  
   
   return int(pwm_des);
 }
@@ -387,7 +388,7 @@ float simulator(float ill_des, float v_i, unsigned long t_ini)
 **************************************************************************/
 int feedback_control(float lux_des, float lux_obs)
 {
-  float kp = 0.5 , ki = 50;
+  float kp = 55.8 , ki = 72;
   float k1, k2, p, i, e, y, u;
   float T = .059; //3*constant of time(correspond to 95% of the response) for 50 lux (tau(50lux) = 0.0196)
   float b = 0.5;
@@ -401,9 +402,9 @@ int feedback_control(float lux_des, float lux_obs)
   err = lux_des - lux_obs;
 
   //deadzone
-  if(abs(err)<10){
-    err = 0;
-  }
+  //if(abs(err)<10){
+    //err = 0;
+  //}
   
   //proportional
   p = (k1*lux_des) - (kp*lux_obs); 
@@ -450,20 +451,24 @@ int controller (float ill_des, float t_init, float v_obs, float v_i){
   
 
   v_des = simulator(ill_des, v_i, t_init);
-  u_ff = 0.5 * feedforward_control(ill_des);
+  u_ff =  0 * feedforward_control(ill_des);
    
   lux_des = convert_V_lux(v_des);
   lux_obs = convert_V_lux(v_obs);
+  Serial.println(v_obs);
   err = lux_des - lux_obs;
-  u_fb = feedback_control(lux_des,lux_obs);
+  u_fb =  feedback_control(v_des,v_obs);
 
   u = u_fb + u_ff;
-//Serial.println(u);
 
   //flickering effect  
   if(u_ant <= 0 && u <= 30){
         u = 0;
   } 
+
+  if(abs(err)<2){
+    u = u_ant;
+  }
 
  
   //saturation
@@ -475,7 +480,7 @@ int controller (float ill_des, float t_init, float v_obs, float v_i){
 
   
   u_ant = u;
-
+  //Serial.println(u);
   return u;
 }
 
@@ -511,7 +516,7 @@ void loop()
       delay(59);
 
     v_read = analogRead(sensorPin)/205.205;
-    u_des = controller(100, t_init, v_read, 0); 
+    u_des = controller(30, t_init, v_read, 0); 
     //Serial.println(v_read);
     change_led(u_des);
     
