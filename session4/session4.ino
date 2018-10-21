@@ -30,7 +30,7 @@
       Define Global variables
 
 **************************************************************************/
-const int ledPin = 9; // LED connected to digital pin 6 (PWM)
+const int ledPin = 3; // LED connected to digital pin 6 (PWM)
 const int switchPin = 2; // LED connected to digital pin 2 (Switch state)
 const int sensorPin = 0; // connect sensor to analog input 0
 
@@ -79,7 +79,7 @@ void setup()
   pinMode(ledPin, OUTPUT); // enable output on the led pin
   pinMode(switchPin, INPUT_PULLUP);
   Serial.begin(9600); // initializeSerial
-  TCCR1B = (TCCR1B & mask) | prescale;
+  TCCR2B = (TCCR2B & mask) | prescale;
   
 
 
@@ -89,7 +89,7 @@ void setup()
   v_i = 0;
 
 
-  Timer1.initialize(59000);
+  Timer1.initialize(10000);
 
 }
 
@@ -184,8 +184,6 @@ boolean  debounce_toggle()
       }
     }
   }
-
-
 
   return state;
 
@@ -411,7 +409,7 @@ int feedback_control(float lux_des, float lux_obs)
 {
   float kp = 55 , ki = 1;
   float k1, k2, p, i, e, y, u;
-  float T = .059; //3*constant of time(correspond to 95% of the response) for 50 lux (tau(50lux) = 0.0196)
+  float T = .01; //3*constant of time(correspond to 95% of the response) for 50 lux (tau(50lux) = 0.0196)
   float b = 1;
   float u_sat;
 
@@ -470,12 +468,10 @@ void controller () {
   int u_fb, u_ff;
   double lux_des, lux_obs;
 
-  //if (counter == 0) {
-    //counter = 1;
-  //}
+
   //average noise filter
   v_obs = v_obs / counter;
-
+  Serial.println(v_obs);
   v_des = simulator(ill_des, v_i, t_change);
   u_ff =  0 * feedforward_control(ill_des);
 
@@ -504,10 +500,10 @@ void controller () {
   } else if (u_des < 0) {
     u_des = 0;
   }
-
+//Serial.println(u_des);
   change_led(u_des);
   
-  Serial.println(u_des);
+
   u_ant = u_des;
   //flag_interrup = HIGH;
   v_obs = 0;
@@ -532,12 +528,10 @@ void controller () {
 
 **************************************************************************/
 void acquire_samples() {
-
-  
-  
-  v_obs = v_obs + (analogRead(sensorPin) / 205.205);
+ 
   counter++;
-
+  v_obs = v_obs + (analogRead(sensorPin) / 205.205);
+  
   if(flag_count){
       Timer1.attachInterrupt(controller);
       !flag_count;
