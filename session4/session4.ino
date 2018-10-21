@@ -62,6 +62,7 @@ bool flag_interrup = 0;
 
 //variables needed to read samples
 int counter = 0;
+bool flag_count = HIGH;
 
 /**************************************************************************
 
@@ -79,6 +80,7 @@ void setup()
   pinMode(switchPin, INPUT_PULLUP);
   Serial.begin(9600); // initializeSerial
   TCCR1B = (TCCR1B & mask) | prescale;
+  
 
 
   initialization();
@@ -88,7 +90,7 @@ void setup()
 
 
   Timer1.initialize(59000);
-  Timer1.attachInterrupt(controller);
+
 }
 
 
@@ -311,7 +313,7 @@ void change_led(int u)
   analogWrite(ledPin, u);
   v_read = analogRead(sensorPin);
   i_lux = read_lux(v_read);
-  Serial.println(i_lux);
+  //Serial.println(i_lux);
 }
 
 
@@ -407,7 +409,7 @@ float simulator(float ill_desire, float v_ini, unsigned long t_ini)
 **************************************************************************/
 int feedback_control(float lux_des, float lux_obs)
 {
-  float kp = 10 , ki = 72;
+  float kp = 55 , ki = 1;
   float k1, k2, p, i, e, y, u;
   float T = .059; //3*constant of time(correspond to 95% of the response) for 50 lux (tau(50lux) = 0.0196)
   float b = 1;
@@ -468,18 +470,21 @@ void controller () {
   int u_fb, u_ff;
   double lux_des, lux_obs;
 
+  //if (counter == 0) {
+    //counter = 1;
+  //}
   //average noise filter
   v_obs = v_obs / counter;
-
 
   v_des = simulator(ill_des, v_i, t_change);
   u_ff =  0 * feedforward_control(ill_des);
 
-  lux_des = convert_V_lux(v_des);
-  lux_obs = convert_V_lux(v_obs);
+  //lux_des = convert_V_lux(v_des);
+  //lux_obs = convert_V_lux(v_obs);
 
   err = lux_des - lux_obs;
   u_fb =  feedback_control(v_des, v_obs);
+  
 
   u_des = u_fb + u_ff;
 
@@ -500,10 +505,16 @@ void controller () {
     u_des = 0;
   }
 
+  change_led(u_des);
+  
+  Serial.println(u_des);
   u_ant = u_des;
-  flag_interrup = 1;
+  //flag_interrup = HIGH;
   v_obs = 0;
   counter = 0;
+
+  
+  
 
 }
 
@@ -522,8 +533,15 @@ void controller () {
 **************************************************************************/
 void acquire_samples() {
 
-  v_obs = v_obs + analogRead(sensorPin) / 205.205;
+  
+  
+  v_obs = v_obs + (analogRead(sensorPin) / 205.205);
   counter++;
+
+  if(flag_count){
+      Timer1.attachInterrupt(controller);
+      !flag_count;
+  }
 
 }
 
@@ -557,10 +575,6 @@ void loop()
 
     acquire_samples();
 
-    if (flag_interrup) {
-      change_led(u_des);
-    }
-
     //scales the blink rate between the min and max values
     //rate = map(rate, 0, 1023, minDuration, maxDuration);
     //rate = constrain(rate, minDuration,maxDuration); // saturate
@@ -578,10 +592,6 @@ void loop()
     }
 
     acquire_samples();
-
-    if (flag_interrup) {
-      change_led(u_des);
-    }
 
   }
 
