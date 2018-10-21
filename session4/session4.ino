@@ -53,7 +53,7 @@ float u_wdp = 0;
 
 
 //define varibles of loop (main)
-int u_des;
+int u_des, i= 0;
 float gain;
 
 //variables of controller
@@ -407,7 +407,7 @@ float simulator(float ill_desire, float v_ini, unsigned long t_ini)
 **************************************************************************/
 int feedback_control(float lux_des, float lux_obs)
 {
-  float kp = 55 , ki = 1;
+  float kp = 2, ki = 35;
   float k1, k2, p, i, e, y, u;
   float T = .01; //3*constant of time(correspond to 95% of the response) for 50 lux (tau(50lux) = 0.0196)
   float b = 1;
@@ -417,7 +417,7 @@ int feedback_control(float lux_des, float lux_obs)
 
   k1 = kp * b;
   k2 = kp * ki * (T / 2);
-
+  
   err = lux_des - lux_obs;
 
   //deadzone
@@ -428,8 +428,10 @@ int feedback_control(float lux_des, float lux_obs)
   //proportional
   p = (k1 * lux_des) - (kp * lux_obs);
 
+    
+
   //integral
-  i = i_ant + k2 * (e + e_ant) + u_wdp;
+  i = i_ant + k2 * (err + e_ant) + u_wdp;
 
   u = p + i;
 
@@ -440,7 +442,7 @@ int feedback_control(float lux_des, float lux_obs)
   } else {
     u_sat = u;
   }
-
+//Serial.println(lux_obs);
   u_wdp = u_sat - u;
 
   y_ant = lux_obs;
@@ -468,18 +470,19 @@ void controller () {
   int u_fb, u_ff;
   double lux_des, lux_obs;
 
-
   //average noise filter
-  v_obs = v_obs / counter;
-  Serial.println(v_obs);
+  //v_obs = v_obs / counter;
+
+  
   v_des = simulator(ill_des, v_i, t_change);
   u_ff =  0 * feedforward_control(ill_des);
 
-  //lux_des = convert_V_lux(v_des);
-  //lux_obs = convert_V_lux(v_obs);
+  lux_des = convert_V_lux(v_des);
+  lux_obs = convert_V_lux(v_obs);
+    
 
   err = lux_des - lux_obs;
-  u_fb =  feedback_control(v_des, v_obs);
+  u_fb =  feedback_control(lux_des, lux_obs);
   
 
   u_des = u_fb + u_ff;
@@ -492,7 +495,7 @@ void controller () {
   if (abs(err) < 2) {
     u_des = u_ant;
   }
-
+  
 
   //saturation
   if (u_des > 255) {
@@ -500,18 +503,14 @@ void controller () {
   } else if (u_des < 0) {
     u_des = 0;
   }
-//Serial.println(u_des);
+
   change_led(u_des);
   
 
   u_ant = u_des;
   //flag_interrup = HIGH;
-  v_obs = 0;
+  //v_obs = 0;
   counter = 0;
-
-  
-  
-
 }
 
 
@@ -530,11 +529,11 @@ void controller () {
 void acquire_samples() {
  
   counter++;
-  v_obs = v_obs + (analogRead(sensorPin) / 205.205);
+  v_obs =analogRead(sensorPin) / 205.205;
   
   if(flag_count){
       Timer1.attachInterrupt(controller);
-      !flag_count;
+      flag_count = LOW;
   }
 
 }
