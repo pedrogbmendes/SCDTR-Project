@@ -450,7 +450,7 @@ float simulator(float ill_desire, float v_ini, unsigned long t_ini)
 **************************************************************************/
 int feedback_control(float lux_des, float lux_obs)
 {
-  float kp = 0.05, ki = 200;
+  float kp = 0.2, ki = 150;
   float k1, k2, p, i, e, y, u;
   float T = .01; 
   float b = 1;
@@ -471,7 +471,7 @@ int feedback_control(float lux_des, float lux_obs)
   //proportional
   p = kp * err ;
 
-if (abs(err) < 5) {
+if (abs(err) < 2) {
     err = 0;
   }
 
@@ -550,9 +550,9 @@ void control_interrupt(){
     u_des = 0;
   }
 
-  if (abs(error) < 2) {
-    u_des = u_ant;
-  }
+  //if (abs(error) < 2) {
+    //u_des = u_ant;
+ // }
   
   //saturation
   if (u_des > 255) {
