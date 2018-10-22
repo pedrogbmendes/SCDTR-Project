@@ -124,12 +124,14 @@ void setup()
   TIMSK1 |= (1 << OCIE1A);
 
   initialization();
-  t_change = t_init;
+  
   v_i = 0;
  
   //Enable interruption 
-  sei();
   t_init = micros();
+  t_change = t_init;
+  sei();
+  
 }
 
 
@@ -266,7 +268,7 @@ double read_lux(int rate)
   double i_lux;
 
   //Calibration of LDR
-  float m = -0.61;
+  float m = -0.62;
   float b = 4.8;
 
 
@@ -295,7 +297,7 @@ double convert_V_lux(float V_r) {
   double i_lux;
 
   //Calibration of LDR
-  float m = -0.61;
+  float m = -0.62;
   float b = 4.8;
 
   R_ldr = (5.0 - V_r) * (R1 / V_r);
@@ -319,7 +321,7 @@ float convert_lux_R(float i_lux)
 {
 
   //Calibration of LDR
-  float m = -0.61;
+  float m = -0.62;
   float b = 4.8;
 
   return pow(10.0, (m * log10(i_lux) + b));
@@ -448,7 +450,7 @@ float simulator(float ill_desire, float v_ini, unsigned long t_ini)
 **************************************************************************/
 int feedback_control(float lux_des, float lux_obs)
 {
-  float kp = 0.7, ki = 19;
+  float kp = 0.05, ki = 200;
   float k1, k2, p, i, e, y, u;
   float T = .01; 
   float b = 1;
@@ -469,7 +471,7 @@ int feedback_control(float lux_des, float lux_obs)
   //proportional
   p = kp * err ;
 
-if (abs(err) < 1) {
+if (abs(err) < 5) {
     err = 0;
   }
 
@@ -480,12 +482,10 @@ if (abs(err) < 1) {
 
   u = p + i ;
 
-   Serial.println(lux_obs);
-
-  if (u > 255) {
-    u_sat = 255;
-  } else if (u < 0) {
-    u_sat = 0;
+  if (u > 255 - u_ff) {
+    u_sat = 255 - u_ff;
+  } else if (u < - u_ff) {
+    u_sat = - u_ff;
   } else {
     u_sat = u;
   }
@@ -495,7 +495,7 @@ if (abs(err) < 1) {
   y_ant = lux_obs;
   i_ant = i;
   e_ant = err;
-
+Serial.println(lux_obs);
   return int (u);
 }
 
@@ -513,12 +513,16 @@ if (abs(err) < 1) {
 void controller() {
     
   v_des = simulator(ill_des, v_i, t_change);
-  u_ff =  0 * feedforward_control(ill_des);
+  u_ff =   feedforward_control(ill_des);
+  
 
   lux_des = convert_V_lux(v_des);
   lux_obs = convert_V_lux(v_obs);
+  
    
   error = lux_des - lux_obs;
+
+  
   
 }
 
@@ -536,9 +540,8 @@ void controller() {
 void control_interrupt(){
   
   //average noise filter
-  v_obs = v_obs / counter;
-  Serial.println(v_obs);
-  u_fb =  feedback_control(lux_des, lux_obs);
+  //v_obs = v_obs / counter;
+  u_fb = feedback_control(lux_des, lux_obs);
   
   u_des = u_fb + u_ff;
 
@@ -559,7 +562,7 @@ void control_interrupt(){
   }
 
   u_ant = u_des;
-  v_obs = 0;
+  //v_obs = 0;
   counter = 0;
 }
 
@@ -578,8 +581,6 @@ void acquire_samples() {
  
   counter++;
   v_obs =analogRead(sensorPin) / 204.6;
-  
-  }
 
 }
 
@@ -627,5 +628,7 @@ void loop()
     acquire_samples();
     controller();
     change_led(u_des);    
+    
   }
+//Serial.println(u_des);
 }
