@@ -21,7 +21,8 @@
       Define of libraries
 
 **************************************************************************/
-#include "TimerOne.h"
+#include <avr/io.h>
+#include <avr/interrupt.h>
 
 
 
@@ -44,8 +45,19 @@ int ct = 0;
 unsigned long t_init;
 
 //frequency
-const byte mask = B11111000; // mask bits that are not prescale
-int prescale = 1; //fastest possible
+const byte mask = B11111000; // mask bits that are not prescale timer2
+int prescale2 = 1; //fastest possible
+
+//interruptions 
+int prescale1b = 4; 
+const uint16_t t1_reset = 0;
+/* time sampling 100Hz=0.01s
+ * 16MHz frequency of oscilator
+ * presacler = 256
+ * (16M*0.01)/256 = 625 
+*/
+const uint16_t t1_comp = 625; 
+
 
 //PI variables
 float y_ant = 0, i_ant = 0, e_ant = 0, u_ant = 0;
@@ -53,7 +65,7 @@ float u_wdp = 0;
 
 
 //define varibles of loop (main)
-int u_des, i= 0;
+int u_des;
 float gain;
 
 //variables of controller
@@ -62,7 +74,11 @@ bool flag_interrup = 0;
 
 //variables needed to read samples
 int counter = 0;
-bool flag_count = HIGH;
+//bool flag_count = HIGH;
+
+
+unsigned long t_read[100];
+int q=0;
 
 /**************************************************************************
 
@@ -79,18 +95,56 @@ void setup()
   pinMode(ledPin, OUTPUT); // enable output on the led pin
   pinMode(switchPin, INPUT_PULLUP);
   Serial.begin(9600); // initializeSerial
-  TCCR2B = (TCCR2B & mask) | prescale;
   
+  TCCR2B = (TCCR2B & mask) | prescale2;//set the frequency to 31372.55 Hz
 
+  //Enables the interruptions
+
+  //reset timer control A
+  TCCR1A = 0;
+ 
+  // turn on CTC mode
+  TCCR1B &= ~(1 << WGM13);
+  TCCR1B |= (1 << WGM12);
+  
+  //set the prescaler of 256
+  //TCCR1B = (TCCR1B & mask) | prescale1b;
+  TCCR1B |= (1 << CS12);
+  TCCR1B &= ~(1 << CS11);
+  TCCR1B &= ~(1 << CS10);
+  
+  //reset timer1 and set the compare value of 625 (=100Hz)
+  TCNT1 = t1_reset;
+  OCR1A = t1_comp;
+
+  // enable timer compare interrupt
+  TIMSK1 |= (1 << OCIE1A);
+
+  //Enable interruption 
+ 
 
   initialization();
   t_init = micros();
   t_change = t_init;
   v_i = 0;
 
+   sei();
+}
 
-  Timer1.initialize(10000);
 
+/**************************************************************************
+
+      Function: INTERRUPTION
+
+      Arguments: No arguments
+      Return value: No return value
+
+      Description:
+
+**************************************************************************/
+
+ISR(TIMER1_COMPA_vect){
+  controller();
 }
 
 
@@ -469,10 +523,10 @@ void controller () {
   float v_des, err, fdbk;
   int u_fb, u_ff;
   double lux_des, lux_obs;
-
+  t_read[q] = micros();
   //average noise filter
   //v_obs = v_obs / counter;
-
+  Serial.println(v_obs);
   
   v_des = simulator(ill_des, v_i, t_change);
   u_ff =  0 * feedforward_control(ill_des);
@@ -511,6 +565,11 @@ void controller () {
   //flag_interrup = HIGH;
   //v_obs = 0;
   counter = 0;
+  q++;
+  if(q==100){
+    q=0;
+    }
+  
 }
 
 
@@ -530,13 +589,14 @@ void acquire_samples() {
  
   counter++;
   v_obs =analogRead(sensorPin) / 205.205;
-  
+  /*
   if(flag_count){
-      Timer1.attachInterrupt(controller);
       flag_count = LOW;
   }
-
+*/
 }
+
+
 
 
 /**************************************************************************
@@ -552,22 +612,23 @@ void acquire_samples() {
 void loop()
 {
 
-
-
   verify_toggle();
 
   if (toggle) {
     //toggle is HIGH
-
+    cli();
     if (!toggle_ant) {
       v_i = analogRead(sensorPin) / 205.205;
       t_change = micros();
       ill_des = 50;
       toggle_ant = HIGH;
     }
-
-    acquire_samples();
-
+    for(int j=0;j<99;j++){
+      Serial.println(t_read[j+1]-t_read[j]);
+    }
+    
+    //acquire_samples();
+    
     //scales the blink rate between the min and max values
     //rate = map(rate, 0, 1023, minDuration, maxDuration);
     //rate = constrain(rate, minDuration,maxDuration); // saturate
