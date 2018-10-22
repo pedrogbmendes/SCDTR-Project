@@ -22,7 +22,8 @@
 
 **************************************************************************/
 #include "TimerOne.h"
-
+#include "avr/interrupt.h"
+#include "avr/io.h"
 
 
 /**************************************************************************
@@ -209,11 +210,11 @@ double read_lux(int rate)
   double i_lux;
 
   //Calibration of LDR
-  float m = -0.363;
-  float b = log10(20515.0);
+  float m = -0.61;
+  float b = 4.8;
 
 
-  V_r = rate / 205.205;
+  V_r = rate / 204.6;
   i_lux = convert_V_lux(V_r);
 
   return i_lux;
@@ -238,8 +239,8 @@ double convert_V_lux(float V_r) {
   double i_lux;
 
   //Calibration of LDR
-  float m = -0.363;
-  float b = log10(20515.0);
+  float m = -0.61;
+  float b = 4.8;
 
   R_ldr = (5.0 - V_r) * (R1 / V_r);
   i_lux = pow(10.0, ((log10(R_ldr) - b) / m ));
@@ -262,8 +263,8 @@ float convert_lux_R(float i_lux)
 {
 
   //Calibration of LDR
-  float m = -0.363;
-  float b = log10(20515.0);
+  float m = -0.61;
+  float b = 4.8;
 
   return pow(10.0, (m * log10(i_lux) + b));
 
@@ -357,9 +358,9 @@ float calculate_t_const(int pwm_value)
 int feedforward_control(float ill_desire)
 {
 
-  float pwm_des = (ill_desire + 20.8) / 0.6235;
+  //float pwm_des = (ill_desire + 20.8) / 0.6235;
 
-  //float pwm_des = ill_desire / gain;
+  float pwm_des = ill_desire / gain;
 
 
   return int(pwm_des);
@@ -407,7 +408,7 @@ float simulator(float ill_desire, float v_ini, unsigned long t_ini)
 **************************************************************************/
 int feedback_control(float lux_des, float lux_obs)
 {
-  float kp = 2, ki = 35;
+  float kp = 0.7, ki = 19;
   float k1, k2, p, i, e, y, u;
   float T = .01; //3*constant of time(correspond to 95% of the response) for 50 lux (tau(50lux) = 0.0196)
   float b = 1;
@@ -426,14 +427,20 @@ int feedback_control(float lux_des, float lux_obs)
   //}
 
   //proportional
-  p = (k1 * lux_des) - (kp * lux_obs);
+  p = kp * err ;
 
-    
+if (abs(err) < 1) {
+    err = 0;
+  }
+
+   
 
   //integral
   i = i_ant + k2 * (err + e_ant) + u_wdp;
 
-  u = p + i;
+  u = p + i ;
+
+   Serial.println(lux_obs);
 
   if (u > 255) {
     u_sat = 255;
@@ -442,7 +449,7 @@ int feedback_control(float lux_des, float lux_obs)
   } else {
     u_sat = u;
   }
-//Serial.println(lux_obs);
+
   u_wdp = u_sat - u;
 
   y_ant = lux_obs;
@@ -475,26 +482,24 @@ void controller () {
 
   
   v_des = simulator(ill_des, v_i, t_change);
-  u_ff =  0 * feedforward_control(ill_des);
+  u_ff =  feedforward_control(ill_des);
 
   lux_des = convert_V_lux(v_des);
   lux_obs = convert_V_lux(v_obs);
-    
-
+  
+  
   err = lux_des - lux_obs;
-  u_fb =  feedback_control(lux_des, lux_obs);
+  u_fb =   feedback_control(lux_des, lux_obs);
   
 
   u_des = u_fb + u_ff;
 
   //flickering effect
-  if (u_ant <= 0 && u_des <= 3) {
+  if (u_ant <= 0 && u_des <= 5) {
     u_des = 0;
   }
 
-  if (abs(err) < 2) {
-    u_des = u_ant;
-  }
+  
   
 
   //saturation
@@ -503,6 +508,7 @@ void controller () {
   } else if (u_des < 0) {
     u_des = 0;
   }
+
 
   change_led(u_des);
   
@@ -529,7 +535,7 @@ void controller () {
 void acquire_samples() {
  
   counter++;
-  v_obs =analogRead(sensorPin) / 205.205;
+  v_obs =analogRead(sensorPin) / 204.6;
   
   if(flag_count){
       Timer1.attachInterrupt(controller);
@@ -560,7 +566,7 @@ void loop()
     //toggle is HIGH
 
     if (!toggle_ant) {
-      v_i = analogRead(sensorPin) / 205.205;
+      v_i = analogRead(sensorPin) / 204.6;
       t_change = micros();
       ill_des = 50;
       toggle_ant = HIGH;
@@ -578,7 +584,7 @@ void loop()
     //toggle is LOW - LED is turn off
 
     if (toggle_ant) {
-      v_i = analogRead(sensorPin) / 205.205;
+      v_i = analogRead(sensorPin) / 204.6;
       t_change = micros();
       ill_des = 20;
       toggle_ant = LOW;

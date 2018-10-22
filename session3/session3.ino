@@ -25,7 +25,7 @@
 *     Define Global variables
 * 
 **************************************************************************/
-const int ledPin= 9; // LED connected to digital pin 6 (PWM)
+const int ledPin= 3; // LED connected to digital pin 6 (PWM)
 const int switchPin= 2; // LED connected to digital pin 2 (Switch state)
 const int sensorPin= 0; // connect sensor to analog input 0
 
@@ -663,7 +663,7 @@ int feedforward_control(float ill_des)
 void loop()
 {
   //define varibles
-
+float rate;
  analogWrite(ledPin, 255);
  delay(1000);
 
@@ -671,10 +671,20 @@ void loop()
   
   //verify_toggle(); 
   toggle=1;
+  
+  for(int i = 0; i < 256; i+=10){
+    analogWrite(ledPin, i);
+    delay(1000);
+    rate = analogRead(sensorPin);
+    Serial.println(rate);
+    
+  }
+  
+  
   if(toggle) {
     //toggle is HIGH
        
-    change_led();
+    //change_led();
 
     //scales the blink rate between the min and max values
     //rate = map(rate, 0, 1023, minDuration, maxDuration);  
