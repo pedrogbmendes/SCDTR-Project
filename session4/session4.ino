@@ -74,11 +74,14 @@ bool flag_interrup = 0;
 
 //variables needed to read samples
 int counter = 0;
-//bool flag_count = HIGH;
+
+//controler variables
+float v_des, error; 
+int u_fb, u_ff; //feedback and feedforward
+double lux_des, lux_obs;
 
 
-unsigned long t_read[100];
-int q=0;
+
 
 /**************************************************************************
 
@@ -94,9 +97,10 @@ void setup()
 {
   pinMode(ledPin, OUTPUT); // enable output on the led pin
   pinMode(switchPin, INPUT_PULLUP);
+ 
   Serial.begin(9600); // initializeSerial
   
-  TCCR2B = (TCCR2B & mask) | prescale2;//set the frequency to 31372.55 Hz
+  TCCR2B = (TCCR2B & mask) | prescale2;//set the frequency to 65500 Hz
 
   //Enables the interruptions
 
@@ -108,7 +112,6 @@ void setup()
   TCCR1B |= (1 << WGM12);
   
   //set the prescaler of 256
-  //TCCR1B = (TCCR1B & mask) | prescale1b;
   TCCR1B |= (1 << CS12);
   TCCR1B &= ~(1 << CS11);
   TCCR1B &= ~(1 << CS10);
@@ -120,15 +123,13 @@ void setup()
   // enable timer compare interrupt
   TIMSK1 |= (1 << OCIE1A);
 
-  //Enable interruption 
- 
-
   initialization();
-  t_init = micros();
   t_change = t_init;
   v_i = 0;
-
-   sei();
+ 
+  //Enable interruption 
+  sei();
+  t_init = micros();
 }
 
 
@@ -144,8 +145,9 @@ void setup()
 **************************************************************************/
 
 ISR(TIMER1_COMPA_vect){
-  controller();
+   control_interrupt();
 }
+
 
 
 
@@ -202,6 +204,7 @@ void verify_toggle()
   }
 }
 
+
 /**************************************************************************
 
       Function: debounce_toggle()
@@ -221,6 +224,8 @@ boolean  debounce_toggle()
 
   // store switch state
   previousState = digitalRead(switchPin);
+  delay(1);
+  state = digitalRead(switchPin);
 
   if ( state != previousState) {
     for (int counter = 0; counter < debounceDelay; counter++) {
@@ -242,8 +247,6 @@ boolean  debounce_toggle()
   return state;
 
 }
-
-
 
 
 /**************************************************************************
@@ -344,8 +347,6 @@ float convert_R_V(float R2)
 
 
 
-
-
 /**************************************************************************
 
       Function: change_led()
@@ -361,15 +362,12 @@ void change_led(int u)
   double i_lux;
   int v_read;
 
-  //test1
+  //change the iluminance of the led
   analogWrite(ledPin, u);
   v_read = analogRead(sensorPin);
   i_lux = read_lux(v_read);
   //Serial.println(i_lux);
 }
-
-
-
 
 
 /**************************************************************************
@@ -385,16 +383,6 @@ void change_led(int u)
 float calculate_t_const(int pwm_value)
 {
   return (0.0106 + 0.028 * pow(10.0, (-0.009 * pwm_value)) );
-
-  /*
-    int R = 10000;
-    double C = 1* pow(10.0,-6);
-    float R_ldr, V_r;
-
-
-    R_ldr = convert_lux_R(i_lux);
-    return ((R*R_ldr)/(R+R_ldr))*C;
-  */
 }
 
 
@@ -448,7 +436,6 @@ float simulator(float ill_desire, float v_ini, unsigned long t_ini)
 }
 
 
-
 /**************************************************************************
 
       Function: feedback_control(float err)
@@ -463,7 +450,7 @@ int feedback_control(float lux_des, float lux_obs)
 {
   float kp = 2, ki = 35;
   float k1, k2, p, i, e, y, u;
-  float T = .01; //3*constant of time(correspond to 95% of the response) for 50 lux (tau(50lux) = 0.0196)
+  float T = .01; 
   float b = 1;
   float u_sat;
 
@@ -481,8 +468,6 @@ int feedback_control(float lux_des, float lux_obs)
 
   //proportional
   p = (k1 * lux_des) - (kp * lux_obs);
-
-    
 
   //integral
   i = i_ant + k2 * (err + e_ant) + u_wdp;
@@ -507,7 +492,6 @@ int feedback_control(float lux_des, float lux_obs)
 }
 
 
-
 /**************************************************************************
 
       Function: controller ()
@@ -518,27 +502,36 @@ int feedback_control(float lux_des, float lux_obs)
       Description:
 
 **************************************************************************/
-void controller () {
-
-  float v_des, err, fdbk;
-  int u_fb, u_ff;
-  double lux_des, lux_obs;
-  t_read[q] = micros();
-  //average noise filter
-  //v_obs = v_obs / counter;
-  Serial.println(v_obs);
-  
+void controller() {
+    
   v_des = simulator(ill_des, v_i, t_change);
   u_ff =  0 * feedforward_control(ill_des);
 
   lux_des = convert_V_lux(v_des);
   lux_obs = convert_V_lux(v_obs);
-    
+   
+  error = lux_des - lux_obs;
+  
+}
 
-  err = lux_des - lux_obs;
+
+/**************************************************************************
+
+      Function: controller_interrupt ()
+
+      Arguments: No arguments
+      Return value: No return value
+
+      Description:
+
+**************************************************************************/
+void control_interrupt(){
+  
+  //average noise filter
+  v_obs = v_obs / counter;
+  Serial.println(v_obs);
   u_fb =  feedback_control(lux_des, lux_obs);
   
-
   u_des = u_fb + u_ff;
 
   //flickering effect
@@ -546,11 +539,10 @@ void controller () {
     u_des = 0;
   }
 
-  if (abs(err) < 2) {
+  if (abs(error) < 2) {
     u_des = u_ant;
   }
   
-
   //saturation
   if (u_des > 255) {
     u_des = 255;
@@ -558,21 +550,10 @@ void controller () {
     u_des = 0;
   }
 
-  change_led(u_des);
-  
-
   u_ant = u_des;
-  //flag_interrup = HIGH;
-  //v_obs = 0;
+  v_obs = 0;
   counter = 0;
-  q++;
-  if(q==100){
-    q=0;
-    }
-  
 }
-
-
 
 
 /**************************************************************************
@@ -588,15 +569,9 @@ void controller () {
 void acquire_samples() {
  
   counter++;
-  v_obs =analogRead(sensorPin) / 205.205;
-  /*
-  if(flag_count){
-      flag_count = LOW;
-  }
-*/
+  v_obs = v_obs + analogRead(sensorPin) / 205.205;
+  delay(1);
 }
-
-
 
 
 /**************************************************************************
@@ -616,25 +591,19 @@ void loop()
 
   if (toggle) {
     //toggle is HIGH
-    cli();
+    
     if (!toggle_ant) {
       v_i = analogRead(sensorPin) / 205.205;
       t_change = micros();
       ill_des = 50;
       toggle_ant = HIGH;
     }
-    for(int j=0;j<99;j++){
-      Serial.println(t_read[j+1]-t_read[j]);
-    }
-    
-    //acquire_samples();
-    
-    //scales the blink rate between the min and max values
-    //rate = map(rate, 0, 1023, minDuration, maxDuration);
-    //rate = constrain(rate, minDuration,maxDuration); // saturate
-    //Serial.println("\n Rate:");
-    //Serial.println(rate); // print rate to serial monitor
 
+    
+    acquire_samples();
+    controller();
+    change_led(u_des); 
+    
   } else {
     //toggle is LOW - LED is turn off
 
@@ -646,8 +615,7 @@ void loop()
     }
 
     acquire_samples();
-
+    controller();
+    change_led(u_des);    
   }
-
-
 }
