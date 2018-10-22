@@ -58,6 +58,7 @@ void setup()
   pinMode(switchPin, INPUT_PULLUP);
   Serial.begin(9600); // initializeSerial
   TCCR1B = (TCCR1B & mask) | prescale;
+  Serial.println("merda");
 }
 
 

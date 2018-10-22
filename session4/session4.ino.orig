@@ -21,9 +21,15 @@
       Define of libraries
 
 **************************************************************************/
+<<<<<<< HEAD
+#include "TimerOne.h"
+#include "avr/interrupt.h"
+#include "avr/io.h"
+=======
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
+>>>>>>> 69d94351a9702932186f0cdc215da26e2f023613
 
 
 /**************************************************************************
@@ -473,8 +479,11 @@ if (abs(err) < 1) {
     err = 0;
   }
 
+<<<<<<< HEAD
    
 
+=======
+>>>>>>> 69d94351a9702932186f0cdc215da26e2f023613
   //integral
   i = i_ant + k2 * (err + e_ant) + u_wdp;
 
@@ -513,10 +522,16 @@ if (abs(err) < 1) {
 void controller() {
     
   v_des = simulator(ill_des, v_i, t_change);
-  u_ff =  0 * feedforward_control(ill_des);
+  u_ff =  feedforward_control(ill_des);
 
   lux_des = convert_V_lux(v_des);
   lux_obs = convert_V_lux(v_obs);
+<<<<<<< HEAD
+  
+  
+  err = lux_des - lux_obs;
+  u_fb =   feedback_control(lux_des, lux_obs);
+=======
    
   error = lux_des - lux_obs;
   
@@ -539,6 +554,7 @@ void control_interrupt(){
   v_obs = v_obs / counter;
   Serial.println(v_obs);
   u_fb =  feedback_control(lux_des, lux_obs);
+>>>>>>> 69d94351a9702932186f0cdc215da26e2f023613
   
   u_des = u_fb + u_ff;
 
@@ -547,9 +563,13 @@ void control_interrupt(){
     u_des = 0;
   }
 
+<<<<<<< HEAD
+  
+=======
   if (abs(error) < 2) {
     u_des = u_ant;
   }
+>>>>>>> 69d94351a9702932186f0cdc215da26e2f023613
   
   //saturation
   if (u_des > 255) {
@@ -558,6 +578,13 @@ void control_interrupt(){
     u_des = 0;
   }
 
+<<<<<<< HEAD
+
+  change_led(u_des);
+  
+
+=======
+>>>>>>> 69d94351a9702932186f0cdc215da26e2f023613
   u_ant = u_des;
   v_obs = 0;
   counter = 0;
@@ -577,10 +604,18 @@ void control_interrupt(){
 void acquire_samples() {
  
   counter++;
+<<<<<<< HEAD
   v_obs =analogRead(sensorPin) / 204.6;
   
+  if(flag_count){
+      Timer1.attachInterrupt(controller);
+      flag_count = LOW;
   }
 
+=======
+  v_obs = v_obs + analogRead(sensorPin) / 205.205;
+  delay(1);
+>>>>>>> 69d94351a9702932186f0cdc215da26e2f023613
 }
 
 
