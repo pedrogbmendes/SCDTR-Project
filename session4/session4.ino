@@ -89,9 +89,11 @@ int flag_dz = 0;
 int flag_fl = 0;
 int flag_dv = 0;
 int flag_dl = 0;
-int flag_dg = 1;
+int flag_dg = 0;
+bool flag_setLed = 0;
 
 int pwm_towrite = 0;
+String pwm_TW;
 
 
 
@@ -615,7 +617,8 @@ void loop()
 
   if (Serial.available() > 0) {
     // read incoming serial data:
-    inChar = Serial.readString();
+    if (!flag_setLed) inChar = Serial.readString();
+    else pwm_TW = Serial.readString();
     // Type the next ASCII value from what you received:
     //Serial.println(inChar);
     
@@ -647,6 +650,9 @@ void loop()
     inChar = " ";
   } else if (inChar == "g\n") {
     flag_dg = 1 - flag_dg;
+    inChar = " ";
+  } else if (inChar == "s\n") {
+    flag_setLed = !flag_setLed;
     inChar = " ";
   }
   
@@ -708,6 +714,17 @@ void loop()
     if (pwm_towrite == 255) flag_dg = 0;
 
     pwm_towrite += 5;  
+  }
+
+  if (flag_setLed) {
+    if (pwm_TW == "s\n") {
+      flag_setLed = LOW;
+      pwm_TW = " ";
+    }
+    else change_led(pwm_TW.toInt());
+
+    Serial.println(pwm_TW);
+    
   }
 
 }
