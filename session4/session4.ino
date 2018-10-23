@@ -80,6 +80,18 @@ float v_des, error;
 int u_fb, u_ff; //feedback and feedforward
 double lux_des, lux_obs;
 
+String inChar;
+int flag_wdp = 0;
+int flag_pro = 0;
+int flag_int = 0;
+int flag_ff = 0;
+int flag_dz = 0;
+int flag_fl = 0;
+int flag_dv = 0;
+int flag_dl = 0;
+int flag_dg = 1;
+
+int pwm_towrite = 0;
 
 
 
@@ -179,6 +191,9 @@ void initialization() {
 
 
   gain = i / 255.0;
+
+  analogWrite(ledPin, 0);
+  delay(3000);
 
 }
 
@@ -450,7 +465,7 @@ float simulator(float ill_desire, float v_ini, unsigned long t_ini)
 **************************************************************************/
 int feedback_control(float lux_des, float lux_obs)
 {
-  float kp = 0.2, ki = 150;
+  float kp = 0.06, ki = 350;
   float k1, k2, p, i, e, y, u;
   float T = .01; 
   float b = 1;
@@ -471,16 +486,16 @@ int feedback_control(float lux_des, float lux_obs)
   //proportional
   p = kp * err ;
 
-if (abs(err) < 2) {
+if (abs(err) < flag_dz * 4) {
     err = 0;
   }
 
    
 
   //integral
-  i = i_ant + k2 * (err + e_ant) + u_wdp;
+  i = i_ant + k2 * (err + e_ant) + flag_wdp * u_wdp;
 
-  u = p + i ;
+  u = flag_pro * p + flag_int * i ;
 
   if (u > 255 - u_ff) {
     u_sat = 255 - u_ff;
@@ -495,7 +510,7 @@ if (abs(err) < 2) {
   y_ant = lux_obs;
   i_ant = i;
   e_ant = err;
-Serial.println(lux_obs);
+//Serial.println(lux_obs);
   return int (u);
 }
 
@@ -513,7 +528,7 @@ Serial.println(lux_obs);
 void controller() {
     
   v_des = simulator(ill_des, v_i, t_change);
-  u_ff =   feedforward_control(ill_des);
+  u_ff = flag_ff * feedforward_control(ill_des);
   
 
   lux_des = convert_V_lux(v_des);
@@ -546,7 +561,7 @@ void control_interrupt(){
   u_des = u_fb + u_ff;
 
   //flickering effect
-  if (u_ant <= 0 && u_des <= 5) {
+  if (u_ant <= 0 && u_des <= 3 && flag_fl == 1) {
     u_des = 0;
   }
 
@@ -598,6 +613,44 @@ void acquire_samples() {
 void loop()
 {
 
+  if (Serial.available() > 0) {
+    // read incoming serial data:
+    inChar = Serial.readString();
+    // Type the next ASCII value from what you received:
+    //Serial.println(inChar);
+    
+  }
+
+  if(inChar == "w\n") {
+    flag_wdp = 1 - flag_wdp;
+    inChar = " ";
+  } else if (inChar == "p\n") {
+    flag_pro = 1 - flag_pro;
+    inChar = " ";
+  } else if (inChar == "i\n") {
+    flag_int = 1 - flag_int;
+    inChar = " ";
+  } else if (inChar == "f\n") {
+    flag_ff = 1 - flag_ff;
+    inChar = " ";
+  } else if (inChar == "d\n") {
+    flag_dz = 1 - flag_dz;
+    inChar = " ";
+  } else if (inChar == "h\n") {
+    flag_fl = 1 - flag_fl;
+    inChar = " ";
+  } else if (inChar == "l\n") {
+    flag_dl = 1 - flag_dl;
+    inChar = " ";
+  } else if (inChar == "v\n") {
+    flag_dv = 1 - flag_dv;
+    inChar = " ";
+  } else if (inChar == "g\n") {
+    flag_dg = 1 - flag_dg;
+    inChar = " ";
+  }
+  
+  
   verify_toggle();
 
   if (toggle) {
@@ -630,5 +683,31 @@ void loop()
     change_led(u_des);    
     
   }
-//Serial.println(u_des);
+
+  if (flag_dv){
+    flag_pro = flag_int = flag_wdp = flag_ff = flag_dz = flag_fl = 1; 
+    Serial.print(v_obs);
+    Serial.print(" ");
+    Serial.print(convert_R_V(convert_lux_R(ill_des)));
+    Serial.print("\n");
+  }
+
+  if (flag_dl){
+    flag_pro = flag_int = flag_wdp = flag_ff = flag_dz = flag_fl = 1; 
+    Serial.print(read_lux(v_obs*204.6));
+    Serial.print(" ");
+    Serial.print(ill_des);
+    Serial.print("\n");
+  }
+
+  if(flag_dg) {
+    flag_pro = flag_int = flag_wdp = flag_ff = flag_dz = flag_fl = 0;
+    change_led(pwm_towrite);
+    delay(100);
+    Serial.println(read_lux(analogRead(sensorPin)));
+    if (pwm_towrite == 255) flag_dg = 0;
+
+    pwm_towrite += 5;  
+  }
+
 }
