@@ -75,7 +75,7 @@ int flag_ff = 0; //(des)activate feedforward
 int flag_dz = 0; //(des)activate deadzone function
 int flag_fl = 0; //(des)activate flickering function
 int flag_dv = 0; //(des)activate demonstration/print of tension
-int flag_dl = 0; //(des)activate demonstration/print of luminance
+int flag_dl = 1; //(des)activate demonstration/print of luminance
 int flag_dg = 0; //(des)activate demonstration/print of gain
 bool flag_setLed = 0; //(des)activate demosntration of Led dimming values
 
@@ -371,9 +371,9 @@ float convert_lux_V(float ill_desire){
       Description: Receives the pwm value and change the Led's luminance
 
 **************************************************************************/
-void change_led(){
+void change_led(int u){
   //change the iluminance of the led
-  analogWrite(ledPin, u_des);
+  analogWrite(ledPin, u);
 
 }
 
@@ -646,7 +646,7 @@ void print_results(){
     flag_pro = flag_int = flag_wdp = flag_ff = flag_dz = flag_fl = 1;
     Serial.print(v_obs);
     Serial.print(" ");
-    Serial.print(convert_lux_V(ill_desire));
+    Serial.print(convert_lux_V(ill_des));
     Serial.print("\n");
   }
 
@@ -725,7 +725,7 @@ void loop()
 
     acquire_samples();
     controller();
-    change_led();
+    change_led(u_des);
 
   } else {
     //toggle is LOW - LED is turn off
@@ -739,7 +739,7 @@ void loop()
 
     acquire_samples();
     controller();
-    change_led();
+    change_led(u_des);
   }
 
   print_results();
