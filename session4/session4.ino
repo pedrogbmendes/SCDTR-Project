@@ -35,16 +35,16 @@ bool toggle_ant = HIGH; //previous state
 int ct = 0; //counter toggle
 
 //time
-unsigned long t_init; 
+unsigned long t_init;
 
 //frequency
 const byte mask = B11111000; // mask bits that are not prescale timer2
 int prescale2 = 1; //fastest possible: f = 31372.55Hz
 
-//interruptions 
+//interruptions
 int prescale1b = 4; //prescaler is 256
 const uint16_t t1_reset = 0;
-const uint16_t t1_comp = 625; 
+const uint16_t t1_comp = 625;
 /* time sampling 100Hz=0.01s
  * 16MHz frequency of oscilator
  * presacler = 256
@@ -52,7 +52,7 @@ const uint16_t t1_comp = 625;
 
 //define varibles of loop (main)
 int u_des;  //pwm signal desire to apply on led
-float gain; //static gain of the system 
+float gain; //static gain of the system
 
 //PI variables
 float y_ant = 0, i_ant = 0, e_ant = 0, u_ant = 0; //previous values
@@ -61,7 +61,7 @@ float u_wdp = 0; //windup
 //variables of controller
 float ill_des, t_change; //luminace desire and new initial time
 float v_obs = 0, v_i = 0, v_des = 0; //observed, initial and desired tension
-float error = 0; //error of desired and observed luminance   
+float error = 0; //error of desired and observed luminance
 int u_fb, u_ff; //feedback and feedforward
 double lux_des = 0, lux_obs = 0; //desired and observed luminance
 
@@ -95,25 +95,25 @@ String pwm_TW;
 void setup(){
   pinMode(ledPin, OUTPUT); // enable output on the led pin
   pinMode(switchPin, INPUT_PULLUP);
- 
+
   Serial.begin(9600); // initializeSerial
-  
+
   TCCR2B = (TCCR2B & mask) | prescale2;//set the frequency to 31372.55Hz
 
   //Enables the interruptions
 
   //reset timer control A
   TCCR1A = 0;
- 
+
   // turn on CTC mode - TCNT1=0
   TCCR1B &= ~(1 << WGM13);
   TCCR1B |= (1 << WGM12);
-  
+
   //set the prescaler of 256
   TCCR1B |= (1 << CS12);
   TCCR1B &= ~(1 << CS11);
   TCCR1B &= ~(1 << CS10);
-  
+
   //reset timer1 and set the compare value of 625 (=100Hz)
   TCNT1 = t1_reset;
   OCR1A = t1_comp;
@@ -121,12 +121,12 @@ void setup(){
   // enable timer compare interrupt
   TIMSK1 |= (1 << OCIE1A);
 
-  initialization(); //determine gain 
+  initialization(); //determine gain
   v_i = 0;
   t_init = micros();
   t_change = t_init;
 
-  //Enable interruption 
+  //Enable interruption
   sei();
 }
 
@@ -188,10 +188,10 @@ void initialization() {
       Description: Verify if the variable toggle was pressed down
   If true (aux1=0), changes the value of toggle
   If true (aux1=1), mantains the value of toggle
-  
+
 **************************************************************************/
 void verify_toggle(){
-  
+
   boolean aux1 = debounce_toggle();// determine if the state change
 
   if (aux1 == 0 && ct == 0) {
@@ -211,7 +211,7 @@ void verify_toggle(){
       Return value: return the state
         - 1 if the state didn't change
         - 0 if the state changed
-        
+
       Description: read the state until the stabilization of the debounce
 
 **************************************************************************/
@@ -255,8 +255,8 @@ boolean  debounce_toggle(){
       Return value: luminance value
 
       Description: The function receives the integer value read by the port
-  (a integer between 0 and 1023) and converts it in the respective voltage 
-  value; then if calls the function convert_V_lux() to convert the voltage 
+  (a integer between 0 and 1023) and converts it in the respective voltage
+  value; then if calls the function convert_V_lux() to convert the voltage
   in luminance
 
 **************************************************************************/
@@ -276,10 +276,10 @@ double read_lux(int rate){
 
       Function: convert_V_lux(float V_r)
 
-      Arguments: read voltage 
+      Arguments: read voltage
       Return value: luminance
 
-      Description: This function receives a voltage and  calculates the 
+      Description: This function receives a voltage and  calculates the
   correspondent value in lux; The values of this function were calibrated
   according to the caractheristic of the LDR
 
@@ -294,7 +294,7 @@ double convert_V_lux(float V_r) {
   float b = 4.8;
 
   R_ldr = (5.0 - V_r) * (R1 / V_r); // resistance of LDR
-  i_lux = pow(10.0, ((log10(R_ldr) - b) / m )); //non-linear function 
+  i_lux = pow(10.0, ((log10(R_ldr) - b) / m )); //non-linear function
 
   return i_lux;
 }
@@ -306,8 +306,8 @@ double convert_V_lux(float V_r) {
 
       Arguments: luminance
       Return value: resistance
-      
-      Description: This function receives a value of luminance in lux and   
+
+      Description: This function receives a value of luminance in lux and
   determines the respective resistance value of the LDR
 
 **************************************************************************/
@@ -328,7 +328,7 @@ float convert_lux_R(float i_lux){
       Arguments: resistance
       Return value: voltage
 
-      Description: This function has a resistance value of LDR as an argument 
+      Description: This function has a resistance value of LDR as an argument
   and returns the voltage on voltage divider circuit
 
 **************************************************************************/
@@ -338,7 +338,6 @@ float convert_R_V(float R2){
 }
 
 
-
 /**************************************************************************
 
       Function: convert_lux_V(float ill_desire)
@@ -346,18 +345,18 @@ float convert_R_V(float R2){
       Arguments: resistance
       Return value: voltage
 
-      Description: This function has a resistance value of LDR as an argument 
+      Description: This function has a resistance value of LDR as an argument
   and returns the voltage on voltage divider circuit
 
 **************************************************************************/
 float convert_lux_V(float ill_desire){
 
   float R2, Vc;
-  
+
   R2 = convert_lux_R(ill_desire);
   Vc = convert_R_V(R2);
 
-  return  Vc
+  return  Vc;
 }
 
 
@@ -368,7 +367,7 @@ float convert_lux_V(float ill_desire){
       Arguments: pwm value
       Return value: No return value
 
-      Description: Receives the pwm value and change the Led's luminance 
+      Description: Receives the pwm value and change the Led's luminance
 
 **************************************************************************/
 void change_led(int u){
@@ -383,12 +382,13 @@ void change_led(int u){
 
 /**************************************************************************
 
-      Function: calculate_t_const()
+      Function: calculate_t_const(int pwm_value)
 
-      Arguments: No arguments
-      Return value: No return value
+      Arguments: pwn
+      Return value: time constant
 
-      Description:
+      Description: This function calculates and returns the time constant
+  for a certain pwm value
 
 **************************************************************************/
 float calculate_t_const(int pwm_value)
@@ -401,15 +401,15 @@ float calculate_t_const(int pwm_value)
 
       Function: feedforward_control(float ill_desire)
 
-      Arguments:luminance disere
+      Arguments: desired luminance
       Return value: pwm desire value
 
-      Description: Feedforward control: receives the desire value of 
+      Description: Feedforward control: receives the desired value of
   luminance and calculates the pwm value to reach that respective luminance
 
 **************************************************************************/
 int feedforward_control(float ill_desire){
-  
+
   float pwm_des = ill_desire / gain;
   return int(pwm_des);
 }
@@ -419,20 +419,22 @@ int feedforward_control(float ill_desire){
 
       Function: simulator(float ill_desire, float v_ini, unsigned long t_ini)
 
-      Arguments: desire luminance, initial voltage and initial time
-      Return value: 
+      Arguments: desired luminance, initial voltage and initial time
+      Return value: expected voltage (at some instante)
 
-      Description:
+      Description: This function receives the desired luminance , the initial
+  voltage and the initial time (when there is a new luminace desired value).
+  It calculates the pwm value necessary for the desired luminace and then
+  calculates the time constant and the final expected voltage. Using the
+  equation of the response, determines and returns the volage at some instance.
 
 **************************************************************************/
-float simulator(float ill_desire, float v_ini, unsigned long t_ini)
-{
-  int R1 = 10000;
-  float tau;
-  float v_f, y ;
+float simulator(float ill_desire, float v_ini, unsigned long t_ini){
+  float tau, v_f, y;
+  float pwm_des = ill_desire / gain;
 
-  tau = calculate_t_const(ill_desire);
-
+  tau = calculate_t_const(pwm_des);
+  v_f = convert_lux_V(ill_desire);
 
   y = v_f - (v_f - v_ini) * exp(-((micros() - t_ini) / tau) * pow(10.0, -6));
 
@@ -442,48 +444,46 @@ float simulator(float ill_desire, float v_ini, unsigned long t_ini)
 
 /**************************************************************************
 
-      Function: feedback_control(float err)
+      Function: feedback_control(float lux_des, float lux_obs)
 
-      Arguments: No arguments
-      Return value: No return value
+      Arguments: desired and observed luminance
+      Return value: pwm value
 
-      Description:
+      Description: The feedback control function receives the desired and
+  observed iluminance and calculates the error between these two. This contro-
+  ler is a PID, that means that has a proportional and a integral part. The
+  error multiples by the proportional gain. The integral part integrates the
+  error
 
 **************************************************************************/
-int feedback_control(float lux_des, float lux_obs)
-{
+int feedback_control(float lux_des, float lux_obs){
   float kp = 0.06, ki = 350;
   float k1, k2, p, i, e, y, u;
-  float T = .01; 
+  float T = .01;
   float b = 1;
-  float u_sat;
-
-  float err;
+  float u_sat, err;
 
   k1 = kp * b;
   k2 = kp * ki * (T / 2);
-  
+
+  //calculates the error between the desired and observed luminance
   err = lux_des - lux_obs;
 
-  //deadzone
-  //if(abs(err)<10){
-  //err = 0;
-  //}
+  /*deadzone - if teh error is very small, it's aproximanted by zero */
+  if (abs(err) < flag_dz * 4) {
+      err = 0;
+    }
 
-  //proportional
+  //proportional part
   p = kp * err ;
 
-if (abs(err) < flag_dz * 4) {
-    err = 0;
-  }
-
-   
-
-  //integral
+  //integral part
   i = i_ant + k2 * (err + e_ant) + flag_wdp * u_wdp;
 
+  //control signal
   u = flag_pro * p + flag_int * i ;
 
+  //Saturation of the signal control
   if (u > 255 - u_ff) {
     u_sat = 255 - u_ff;
   } else if (u < - u_ff) {
@@ -492,12 +492,14 @@ if (abs(err) < flag_dz * 4) {
     u_sat = u;
   }
 
+  //Anti-windup: used to create a boundary for the integrated error
   u_wdp = u_sat - u;
 
+  //stores the value for next time
   y_ant = lux_obs;
   i_ant = i;
   e_ant = err;
-//Serial.println(lux_obs);
+
   return int (u);
 }
 
@@ -509,23 +511,20 @@ if (abs(err) < flag_dz * 4) {
       Arguments: No arguments
       Return value: No return value
 
-      Description:
+      Description: This function runs the simulator to determine the desired
+  value of voltage, converts the desired and observed voltage to lux and cal-
+  culates the error. Also, calls the feedforward control functiom.
 
 **************************************************************************/
-void controller() {
-    
+void controller(){
+
   v_des = simulator(ill_des, v_i, t_change);
-  u_ff = flag_ff * feedforward_control(ill_des);
-  
 
   lux_des = convert_V_lux(v_des);
   lux_obs = convert_V_lux(v_obs);
-  
-   
-  error = lux_des - lux_obs;
 
-  
-  
+  u_ff = flag_ff * feedforward_control(ill_des);
+  error = lux_des - lux_obs;
 }
 
 
@@ -536,15 +535,15 @@ void controller() {
       Arguments: No arguments
       Return value: No return value
 
-      Description:
+      Description: Function that runs when the interruption is triggered.
+  Running the feedback function and using the feedforward calculates the
+  control  value (pwm) to apply to the led.
 
 **************************************************************************/
 void control_interrupt(){
-  
+
   //average noise filter
-  //v_obs = v_obs / counter;
   u_fb = feedback_control(lux_des, lux_obs);
-  
   u_des = u_fb + u_ff;
 
   //flickering effect
@@ -552,10 +551,6 @@ void control_interrupt(){
     u_des = 0;
   }
 
-  //if (abs(error) < 2) {
-    //u_des = u_ant;
- // }
-  
   //saturation
   if (u_des > 255) {
     u_des = 255;
@@ -564,8 +559,6 @@ void control_interrupt(){
   }
 
   u_ant = u_des;
-  //v_obs = 0;
-  counter = 0;
 }
 
 
@@ -576,29 +569,28 @@ void control_interrupt(){
       Arguments: No arguments
       Return value: No return value
 
-      Description:
+      Description: Read the value of voltage using the analog input
+  port 0 (sensorPin) and converts the read value in voltage.
 
 **************************************************************************/
-void acquire_samples() {
- 
-  counter++;
-  v_obs =analogRead(sensorPin) / 204.6;
+void acquire_samples(){
 
+  v_obs = analogRead(sensorPin) / 204.6;
 }
 
 
 /**************************************************************************
 
-      Function: loop()
+      Function: set_flags()
 
       Arguments: No arguments
       Return value: No return value
 
-      Description:
+      Description: Set the values of the all flags to use and print some
+  funcionalities. 
 
 **************************************************************************/
-void loop()
-{
+void set_flags(){
 
   if (Serial.available() > 0) {
     // read incoming serial data:
@@ -606,7 +598,6 @@ void loop()
     else pwm_TW = Serial.readString();
     // Type the next ASCII value from what you received:
     //Serial.println(inChar);
-    
   }
 
   if(inChar == "w\n") {
@@ -640,43 +631,23 @@ void loop()
     flag_setLed = !flag_setLed;
     inChar = " ";
   }
-  
-  
-  verify_toggle();
+}
 
-  if (toggle) {
-    //toggle is HIGH
-    
-    if (!toggle_ant) {
-      v_i = analogRead(sensorPin) / 204.6;
-      t_change = micros();
-      ill_des = 50;
-      toggle_ant = HIGH;
-    }
 
-    
-    acquire_samples();
-    controller();
-    change_led(u_des); 
-    
-  } else {
-    //toggle is LOW - LED is turn off
+/**************************************************************************
 
-    if (toggle_ant) {
-      v_i = analogRead(sensorPin) / 204.6;
-      t_change = micros();
-      ill_des = 20;
-      toggle_ant = LOW;
-    }
+      Function: print_results()
 
-    acquire_samples();
-    controller();
-    change_led(u_des);    
-    
-  }
+      Arguments: No arguments
+      Return value: No return value
+
+      Description: Prints the results according with the activated flags
+
+**************************************************************************/
+void print_results(){
 
   if (flag_dv){
-    flag_pro = flag_int = flag_wdp = flag_ff = flag_dz = flag_fl = 1; 
+    flag_pro = flag_int = flag_wdp = flag_ff = flag_dz = flag_fl = 1;
     Serial.print(v_obs);
     Serial.print(" ");
     Serial.print(convert_R_V(convert_lux_R(ill_des)));
@@ -684,7 +655,7 @@ void loop()
   }
 
   if (flag_dl){
-    flag_pro = flag_int = flag_wdp = flag_ff = flag_dz = flag_fl = 1; 
+    flag_pro = flag_int = flag_wdp = flag_ff = flag_dz = flag_fl = 1;
     Serial.print(read_lux(v_obs*204.6));
     Serial.print(" ");
     Serial.print(ill_des);
@@ -698,7 +669,7 @@ void loop()
     Serial.println(read_lux(analogRead(sensorPin)));
     if (pwm_towrite == 255) flag_dg = 0;
 
-    pwm_towrite += 5;  
+    pwm_towrite += 5;
   }
 
   if (flag_setLed) {
@@ -709,7 +680,54 @@ void loop()
     else change_led(pwm_TW.toInt());
 
     Serial.println(pwm_TW);
-    
+  }
+}
+
+
+/**************************************************************************
+
+      Function: loop()
+
+      Arguments: No arguments
+      Return value: No return value
+
+      Description:
+
+**************************************************************************/
+void loop()
+{
+
+  set_flags();
+  verify_toggle();
+
+  if (toggle) {
+    //toggle is HIGH
+
+    if (!toggle_ant) {
+      v_i = analogRead(sensorPin) / 204.6;
+      t_change = micros();
+      ill_des = 50;
+      toggle_ant = HIGH;
+    }
+
+    acquire_samples();
+    controller();
+    change_led(u_des);
+
+  } else {
+    //toggle is LOW - LED is turn off
+
+    if (toggle_ant) {
+      v_i = analogRead(sensorPin) / 204.6;
+      t_change = micros();
+      ill_des = 20;
+      toggle_ant = LOW;
+    }
+
+    acquire_samples();
+    controller();
+    change_led(u_des);
   }
 
+  print_results();
 }
