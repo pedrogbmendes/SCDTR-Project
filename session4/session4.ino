@@ -4,7 +4,7 @@
 
       Project:
          - Real-Time Cooperative Decentralized Control of a Smart
-  Office Illumination System
+  Office Illumination System: Part1
 
       Authors:
         - Pedro Gonçalo Mendes, 81046, pedrogoncalomendes@tecnico.ulisboa.pt
@@ -16,14 +16,6 @@
 
 **************************************************************************/
 
-/**************************************************************************
-
-      Define of libraries
-
-**************************************************************************/
-#include <avr/io.h>
-#include <avr/interrupt.h>
-
 
 
 /**************************************************************************
@@ -31,70 +23,63 @@
       Define Global variables
 
 **************************************************************************/
-const int ledPin = 3; // LED connected to digital pin 6 (PWM)
+
+//Ports used
+const int ledPin = 3; // LED connected to digital pin 3 (PWM - timer2)
 const int switchPin = 2; // LED connected to digital pin 2 (Switch state)
 const int sensorPin = 0; // connect sensor to analog input 0
 
-
 //toggle
 bool toggle = LOW; //initial state of LED - turn off (toggle is LOW (0))
-bool toggle_ant = HIGH;
-int ct = 0;
+bool toggle_ant = HIGH; //previous state
+int ct = 0; //counter toggle
 
 //time
-unsigned long t_init;
+unsigned long t_init; 
 
 //frequency
 const byte mask = B11111000; // mask bits that are not prescale timer2
-int prescale2 = 1; //fastest possible
+int prescale2 = 1; //fastest possible: f = 31372.55Hz
 
 //interruptions 
-int prescale1b = 4; 
+int prescale1b = 4; //prescaler is 256
 const uint16_t t1_reset = 0;
+const uint16_t t1_comp = 625; 
 /* time sampling 100Hz=0.01s
  * 16MHz frequency of oscilator
  * presacler = 256
- * (16M*0.01)/256 = 625 
-*/
-const uint16_t t1_comp = 625; 
-
-
-//PI variables
-float y_ant = 0, i_ant = 0, e_ant = 0, u_ant = 0;
-float u_wdp = 0;
-
+ * (16M*0.01)/256 = 625     */
 
 //define varibles of loop (main)
-int u_des;
-float gain;
+int u_des;  //pwm signal desire to apply on led
+float gain; //static gain of the system 
+
+//PI variables
+float y_ant = 0, i_ant = 0, e_ant = 0, u_ant = 0; //previous values
+float u_wdp = 0; //windup
 
 //variables of controller
-float ill_des, t_change, v_obs = 0, v_i;
-bool flag_interrup = 0;
-
-//variables needed to read samples
-int counter = 0;
-
-//controler variables
-float v_des, error; 
+float ill_des, t_change; //luminace desire and new initial time
+float v_obs = 0, v_i = 0, v_des = 0; //observed, initial and desired tension
+float error = 0; //error of desired and observed luminance   
 int u_fb, u_ff; //feedback and feedforward
-double lux_des, lux_obs;
+double lux_des = 0, lux_obs = 0; //desired and observed luminance
 
-String inChar;
-int flag_wdp = 0;
-int flag_pro = 0;
-int flag_int = 0;
-int flag_ff = 0;
-int flag_dz = 0;
-int flag_fl = 0;
-int flag_dv = 0;
-int flag_dl = 0;
-int flag_dg = 0;
-bool flag_setLed = 0;
+//Debug and demonstration
+String inChar; //string to read anf input
+int flag_wdp = 0; //(des)activate windup function
+int flag_pro = 0; //(des)activate proportional controler
+int flag_int = 0; //(des)activate integral controler
+int flag_ff = 0; //(des)activate feedforward
+int flag_dz = 0; //(des)activate deadzone function
+int flag_fl = 0; //(des)activate flickering function
+int flag_dv = 0; //(des)activate demonstration/print of tension
+int flag_dl = 0; //(des)activate demonstration/print of luminance
+int flag_dg = 0; //(des)activate demonstration/print of gain
+bool flag_setLed = 0; //(des)activate demosntration of Led dimming values
 
 int pwm_towrite = 0;
 String pwm_TW;
-
 
 
 /**************************************************************************
@@ -104,24 +89,23 @@ String pwm_TW;
       Arguments: No arguments
       Return value: No return value
 
-      Description:
+      Description: Initializes the arduino
 
 **************************************************************************/
-void setup()
-{
+void setup(){
   pinMode(ledPin, OUTPUT); // enable output on the led pin
   pinMode(switchPin, INPUT_PULLUP);
  
   Serial.begin(9600); // initializeSerial
   
-  TCCR2B = (TCCR2B & mask) | prescale2;//set the frequency to 65500 Hz
+  TCCR2B = (TCCR2B & mask) | prescale2;//set the frequency to 31372.55Hz
 
   //Enables the interruptions
 
   //reset timer control A
   TCCR1A = 0;
  
-  // turn on CTC mode
+  // turn on CTC mode - TCNT1=0
   TCCR1B &= ~(1 << WGM13);
   TCCR1B |= (1 << WGM12);
   
@@ -137,34 +121,30 @@ void setup()
   // enable timer compare interrupt
   TIMSK1 |= (1 << OCIE1A);
 
-  initialization();
-  
+  initialization(); //determine gain 
   v_i = 0;
- 
-  //Enable interruption 
   t_init = micros();
   t_change = t_init;
+
+  //Enable interruption 
   sei();
-  
 }
 
 
 /**************************************************************************
 
-      Function: INTERRUPTION
+      Function: INTERRUPTION: ISR(TIMER1_COMPA_vect)
 
-      Arguments: No arguments
+      Arguments: TIMER1_COMPA_vect
       Return value: No return value
 
-      Description:
+      Description: This function is ativated each time that the interruption
+  is triggered and runs the function control_interrupt()
 
 **************************************************************************/
-
 ISR(TIMER1_COMPA_vect){
    control_interrupt();
 }
-
-
 
 
 /**************************************************************************
@@ -174,7 +154,7 @@ ISR(TIMER1_COMPA_vect){
       Arguments: No arguments
       Return value: No return value
 
-      Description:
+      Description: Calculate the system's gain
 
 **************************************************************************/
 void initialization() {
@@ -183,22 +163,19 @@ void initialization() {
   float i;
 
   delay(50);
-  v0 = analogRead(sensorPin);
+  v0 = analogRead(sensorPin); //read the noise
 
   analogWrite(ledPin, 255);
   delay(1000);
-  v1 = analogRead(sensorPin);
+  v1 = analogRead(sensorPin); //read the iluminance value + noise
 
-  i = read_lux(v1) - read_lux(v0);
+  i = read_lux(v1) - read_lux(v0);//subtrat the noise
 
-
-  gain = i / 255.0;
+  gain = i / 255.0;//calculates the linera gain (lux/pwm)
 
   analogWrite(ledPin, 0);
   delay(3000);
-
 }
-
 
 
 /**************************************************************************
@@ -208,12 +185,14 @@ void initialization() {
       Arguments: No arguments
       Return value: No return value
 
-      Description:
-
+      Description: Verify if the variable toggle was pressed down
+  If true (aux1=0), changes the value of toggle
+  If true (aux1=1), mantains the value of toggle
+  
 **************************************************************************/
-void verify_toggle()
-{
-  boolean aux1 = debounce_toggle();
+void verify_toggle(){
+  
+  boolean aux1 = debounce_toggle();// determine if the state change
 
   if (aux1 == 0 && ct == 0) {
     toggle = !toggle;
@@ -229,13 +208,14 @@ void verify_toggle()
       Function: debounce_toggle()
 
       Arguments: No arguments
-      Return value: state of the toggle
-
-      Description:
+      Return value: return the state
+        - 1 if the state didn't change
+        - 0 if the state changed
+        
+      Description: read the state until the stabilization of the debounce
 
 **************************************************************************/
-boolean  debounce_toggle()
-{
+boolean  debounce_toggle(){
   int debounceDelay = 100;
 
   boolean previousState;
@@ -264,48 +244,44 @@ boolean  debounce_toggle()
   }
 
   return state;
-
 }
 
 
 /**************************************************************************
 
-      Function: read_lux()
+      Function: read_lux(int rate)
 
-      Arguments: No arguments
-      Return value: state of the toggle
+      Arguments: value read
+      Return value: luminance value
 
-      Description:
+      Description: The function receives the integer value read by the port
+  (a integer between 0 and 1023) and converts it in the respective voltage 
+  value; then if calls the function convert_V_lux() to convert the voltage 
+  in luminance
 
 **************************************************************************/
-double read_lux(int rate)
-{
-  int R1 = 10000;
-  float V_r, R_ldr;
+double read_lux(int rate){
+
+  float V_r;
   double i_lux;
-
-  //Calibration of LDR
-  float m = -0.62;
-  float b = 4.8;
-
 
   V_r = rate / 204.6;
   i_lux = convert_V_lux(V_r);
 
   return i_lux;
-
 }
-
 
 
 /**************************************************************************
 
       Function: convert_V_lux(float V_r)
 
-      Arguments: No arguments
-      Return value: state of the toggle
+      Arguments: read voltage 
+      Return value: luminance
 
-      Description:
+      Description: This function receives a voltage and  calculates the 
+  correspondent value in lux; The values of this function were calibrated
+  according to the caractheristic of the LDR
 
 **************************************************************************/
 double convert_V_lux(float V_r) {
@@ -317,8 +293,8 @@ double convert_V_lux(float V_r) {
   float m = -0.62;
   float b = 4.8;
 
-  R_ldr = (5.0 - V_r) * (R1 / V_r);
-  i_lux = pow(10.0, ((log10(R_ldr) - b) / m ));
+  R_ldr = (5.0 - V_r) * (R1 / V_r); // resistance of LDR
+  i_lux = pow(10.0, ((log10(R_ldr) - b) / m )); //non-linear function 
 
   return i_lux;
 }
@@ -326,66 +302,82 @@ double convert_V_lux(float V_r) {
 
 /**************************************************************************
 
-      Function: convert_lux_R()
+      Function: convert_lux_R(float i_lux)
 
-      Arguments: No arguments
-      Return value: state of the toggle
-
-      Description:
+      Arguments: luminance
+      Return value: resistance
+      
+      Description: This function receives a value of luminance in lux and   
+  determines the respective resistance value of the LDR
 
 **************************************************************************/
-float convert_lux_R(float i_lux)
-{
+float convert_lux_R(float i_lux){
 
   //Calibration of LDR
   float m = -0.62;
   float b = 4.8;
 
   return pow(10.0, (m * log10(i_lux) + b));
-
-
 }
 
 
 /**************************************************************************
 
-      Function: convert_R_V()
+      Function: convert_R_V(float R2)
 
-      Arguments: No arguments
-      Return value: state of the toggle
+      Arguments: resistance
+      Return value: voltage
 
-      Description:
+      Description: This function has a resistance value of LDR as an argument 
+  and returns the voltage on voltage divider circuit
 
 **************************************************************************/
-float convert_R_V(float R2)
-{
+float convert_R_V(float R2){
 
   return  (5.0) / (1 + (R2 / 10000));
-
 }
 
 
 
 /**************************************************************************
 
-      Function: change_led()
+      Function: convert_lux_V(float ill_desire)
 
-      Arguments: No arguments
-      Return value: state of the toggle
+      Arguments: resistance
+      Return value: voltage
 
-      Description:
+      Description: This function has a resistance value of LDR as an argument 
+  and returns the voltage on voltage divider circuit
 
 **************************************************************************/
-void change_led(int u)
-{
+float convert_lux_V(float ill_desire){
+
+  float R2, Vc;
+  
+  R2 = convert_lux_R(ill_desire);
+  Vc = convert_R_V(R2);
+
+  return  Vc
+}
+
+
+/**************************************************************************
+
+      Function: change_led(int u)
+
+      Arguments: pwm value
+      Return value: No return value
+
+      Description: Receives the pwm value and change the Led's luminance 
+
+**************************************************************************/
+void change_led(int u){
   double i_lux;
   int v_read;
 
   //change the iluminance of the led
   analogWrite(ledPin, u);
-  v_read = analogRead(sensorPin);
-  i_lux = read_lux(v_read);
-  //Serial.println(i_lux);
+
 }
 
 
@@ -407,33 +399,28 @@ float calculate_t_const(int pwm_value)
 
 /**************************************************************************
 
-      Function: feedforward_control()
+      Function: feedforward_control(float ill_desire)
 
-      Arguments: No arguments
-      Return value: No return value
+      Arguments:luminance disere
+      Return value: pwm desire value
 
-      Description:
+      Description: Feedforward control: receives the desire value of 
+  luminance and calculates the pwm value to reach that respective luminance
 
 **************************************************************************/
-int feedforward_control(float ill_desire)
-{
-
-  //float pwm_des = (ill_desire + 20.8) / 0.6235;
-
+int feedforward_control(float ill_desire){
+  
   float pwm_des = ill_desire / gain;
-
-
   return int(pwm_des);
 }
 
 
-
 /**************************************************************************
 
-      Function: simulator()
+      Function: simulator(float ill_desire, float v_ini, unsigned long t_ini)
 
-      Arguments: No arguments
-      Return value: No return value
+      Arguments: desire luminance, initial voltage and initial time
+      Return value: 
 
       Description:
 
@@ -441,13 +428,11 @@ int feedforward_control(float ill_desire)
 float simulator(float ill_desire, float v_ini, unsigned long t_ini)
 {
   int R1 = 10000;
-  float tau, R2;
+  float tau;
   float v_f, y ;
 
   tau = calculate_t_const(ill_desire);
 
-  R2 = convert_lux_R(ill_desire);
-  v_f = convert_R_V(R2);
 
   y = v_f - (v_f - v_ini) * exp(-((micros() - t_ini) / tau) * pow(10.0, -6));
 
