@@ -10,7 +10,7 @@
         - Pedro Gonçalo Mendes, 81046, pedrogoncalomendes@tecnico.ulisboa.pt
         - Miguel Matos Malaca, 81702, miguelmmalaca@tecnico.ulisboa.pt
 
-                       1st semestre, 2018/19
+                       1st semester, 2018/19
                     Instítuto Superior Técnico
 
 
@@ -57,6 +57,7 @@ float gain; //static gain of the system
 //PI variables
 float y_ant = 0, i_ant = 0, e_ant = 0, u_ant = 0; //previous values
 float u_wdp = 0; //windup
+float p = 0, i = 0;
 
 //variables of controller
 float ill_des, t_change; //luminace desire and new initial time
@@ -362,20 +363,17 @@ float convert_lux_V(float ill_desire){
 
 /**************************************************************************
 
-      Function: change_led(int u)
+      Function: change_led()
 
-      Arguments: pwm value
+      Arguments: No arguments
       Return value: No return value
 
       Description: Receives the pwm value and change the Led's luminance
 
 **************************************************************************/
-void change_led(int u){
-  double i_lux;
-  int v_read;
-
+void change_led(){
   //change the iluminance of the led
-  analogWrite(ledPin, u);
+  analogWrite(ledPin, u_des);
 
 }
 
@@ -458,12 +456,10 @@ float simulator(float ill_desire, float v_ini, unsigned long t_ini){
 **************************************************************************/
 int feedback_control(float lux_des, float lux_obs){
   float kp = 0.06, ki = 350;
-  float k1, k2, p, i, e, y, u;
+  float k2, u;
   float T = .01;
-  float b = 1;
   float u_sat, err;
 
-  k1 = kp * b;
   k2 = kp * ki * (T / 2);
 
   //calculates the error between the desired and observed luminance
@@ -587,7 +583,7 @@ void acquire_samples(){
       Return value: No return value
 
       Description: Set the values of the all flags to use and print some
-  funcionalities. 
+  funcionalities.
 
 **************************************************************************/
 void set_flags(){
@@ -650,13 +646,13 @@ void print_results(){
     flag_pro = flag_int = flag_wdp = flag_ff = flag_dz = flag_fl = 1;
     Serial.print(v_obs);
     Serial.print(" ");
-    Serial.print(convert_R_V(convert_lux_R(ill_des)));
+    Serial.print(convert_lux_V(ill_desire));
     Serial.print("\n");
   }
 
   if (flag_dl){
     flag_pro = flag_int = flag_wdp = flag_ff = flag_dz = flag_fl = 1;
-    Serial.print(read_lux(v_obs*204.6));
+    Serial.print(convert_V_lux(v_obs));
     Serial.print(" ");
     Serial.print(ill_des);
     Serial.print("\n");
@@ -677,10 +673,27 @@ void print_results(){
       flag_setLed = LOW;
       pwm_TW = " ";
     }
-    else change_led(pwm_TW.toInt());
-
-    Serial.println(pwm_TW);
+    else {
+      change_led(pwm_TW.toInt());
+      Serial.println(pwm_TW.toInt()*gain);
+    }
   }
+
+  if(!flag_dv && !flag_dl && !flag_dg){
+    //Serial.println(v_obs);
+    //Serial.println(lux_obs);
+    //Serial.println(u_des);        //control signal
+    //Serial.println(u_ff);         //control signal from feedforward controller
+    //Serial.println(u_fb);         //control signal from feedback controller
+    //Serial.println(gain);
+    //Serial.println(u_wdp);        //windup signal
+    //Serial.println(error);
+    //Serial.println(u_sat);
+    //Serial.println(toggle);
+    //Serial.println(i);
+    //Serial.println(p);
+  }
+
 }
 
 
@@ -712,7 +725,7 @@ void loop()
 
     acquire_samples();
     controller();
-    change_led(u_des);
+    change_led();
 
   } else {
     //toggle is LOW - LED is turn off
@@ -726,7 +739,7 @@ void loop()
 
     acquire_samples();
     controller();
-    change_led(u_des);
+    change_led();
   }
 
   print_results();
