@@ -65,19 +65,20 @@ float v_obs = 0, v_i = 0, v_des = 0; //observed, initial and desired tension
 float error = 0; //error of desired and observed luminance
 int u_fb, u_ff; //feedback and feedforward
 double lux_des = 0, lux_obs = 0; //desired and observed luminance
+float dz = 0.9;
 
 //Debug and demonstration
 String inChar; //string to read anf input
-int flag_wdp = 0; //(des)activate windup function
-int flag_pro = 0; //(des)activate proportional controler
-int flag_int = 0; //(des)activate integral controler
-int flag_ff = 0; //(des)activate feedforward
-int flag_dz = 0; //(des)activate deadzone function
-int flag_fl = 0; //(des)activate flickering function
+int flag_wdp = 1; //(des)activate windup function
+int flag_pro = 1; //(des)activate proportional controler
+int flag_int = 1; //(des)activate integral controler
+int flag_ff = 1; //(des)activate feedforward
+int flag_dz = 1; //(des)activate deadzone function
+int flag_fl = 1; //(des)activate flickering function
 int flag_dv = 0; //(des)activate demonstration/print of tension
-int flag_dl = 1; //(des)activate demonstration/print of luminance
-int flag_dg = 0; //(des)activate demonstration/print of gain
-bool flag_setLed = 0; //(des)activate demosntration of Led dimming values
+int flag_dl = 0; //(des)activate demonstration/print of luminance
+int flag_dg = 1; //(des)activate demonstration/print of gain
+bool flag_setLed = LOW; //(des)activate demosntration of Led dimming values
 
 int pwm_towrite = 0;
 String pwm_TW;
@@ -97,7 +98,7 @@ void setup(){
   pinMode(ledPin, OUTPUT); // enable output on the led pin
   pinMode(switchPin, INPUT_PULLUP);
 
-  Serial.begin(9600); // initializeSerial
+  Serial.begin(2000000); // initializeSerial
 
   TCCR2B = (TCCR2B & mask) | prescale2;//set the frequency to 31372.55Hz
 
@@ -455,7 +456,7 @@ float simulator(float ill_desire, float v_ini, unsigned long t_ini){
 
 **************************************************************************/
 int feedback_control(float lux_des, float lux_obs){
-  float kp = 0.06, ki = 350;
+  float kp = 0.075, ki = 350;
   float k2, u;
   float T = .01;
   float u_sat, err;
@@ -466,7 +467,7 @@ int feedback_control(float lux_des, float lux_obs){
   err = lux_des - lux_obs;
 
   /*deadzone - if teh error is very small, it's aproximanted by zero */
-  if (abs(err) < flag_dz * 4) {
+  if (abs(err) < flag_dz * dz) {
       err = 0;
     }
 
@@ -665,7 +666,7 @@ void print_results(){
     Serial.println(read_lux(analogRead(sensorPin)));
     if (pwm_towrite == 255) flag_dg = 0;
 
-    pwm_towrite += 5;
+    pwm_towrite += 1;
   }
 
   if (flag_setLed) {
@@ -675,13 +676,15 @@ void print_results(){
     }
     else {
       change_led(pwm_TW.toInt());
-      Serial.println(pwm_TW.toInt()*gain);
+      //Serial.println(pwm_TW.toInt()*gain);
     }
   }
 
   if(!flag_dv && !flag_dl && !flag_dg){
     //Serial.println(v_obs);
-    //Serial.println(lux_obs);
+    Serial.println(lux_obs);
+    //Serial.println(millis());
+    //Serial.println(convert_lux_V(ill_des));
     //Serial.println(u_des);        //control signal
     //Serial.println(u_ff);         //control signal from feedforward controller
     //Serial.println(u_fb);         //control signal from feedback controller
@@ -720,6 +723,7 @@ void loop()
       v_i = analogRead(sensorPin) / 204.6;
       t_change = micros();
       ill_des = 50;
+      dz = 3;
       toggle_ant = HIGH;
     }
 
@@ -734,6 +738,7 @@ void loop()
       v_i = analogRead(sensorPin) / 204.6;
       t_change = micros();
       ill_des = 20;
+      dz = 1.5;
       toggle_ant = LOW;
     }
 
