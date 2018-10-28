@@ -65,23 +65,26 @@ float v_obs = 0, v_i = 0, v_des = 0; //observed, initial and desired tension
 float error = 0; //error of desired and observed luminance
 int u_fb, u_ff; //feedback and feedforward
 double lux_des = 0, lux_obs = 0; //desired and observed luminance
-float dz = 0.9;
+float dz;
 
 //Debug and demonstration
 String inChar; //string to read anf input
 int flag_wdp = 1; //(des)activate windup function
 int flag_pro = 1; //(des)activate proportional controler
 int flag_int = 1; //(des)activate integral controler
-int flag_ff = 1; //(des)activate feedforward
+int flag_ff = 0; //(des)activate feedforward
 int flag_dz = 1; //(des)activate deadzone function
 int flag_fl = 1; //(des)activate flickering function
 int flag_dv = 0; //(des)activate demonstration/print of tension
-int flag_dl = 0; //(des)activate demonstration/print of luminance
-int flag_dg = 1; //(des)activate demonstration/print of gain
+int flag_dl = 1; //(des)activate demonstration/print of luminance
+int flag_dg = 0; //(des)activate demonstration/print of gain
 bool flag_setLed = LOW; //(des)activate demosntration of Led dimming values
 
 int pwm_towrite = 0;
 String pwm_TW;
+
+//frequency
+unsigned long t1=0, t2=0;
 
 
 /**************************************************************************
@@ -127,7 +130,7 @@ void setup(){
   v_i = 0;
   t_init = micros();
   t_change = t_init;
-
+  t1 = t_init;
   //Enable interruption
   sei();
 }
@@ -456,7 +459,7 @@ float simulator(float ill_desire, float v_ini, unsigned long t_ini){
 
 **************************************************************************/
 int feedback_control(float lux_des, float lux_obs){
-  float kp = 0.075, ki = 350;
+  float kp = 0.07, ki = 350;
   float k2, u;
   float T = .01;
   float u_sat, err;
@@ -539,7 +542,9 @@ void controller(){
 **************************************************************************/
 void control_interrupt(){
 
-  //average noise filter
+  t2 = t1;
+  t1 = micros();
+  
   u_fb = feedback_control(lux_des, lux_obs);
   u_des = u_fb + u_ff;
 
@@ -652,7 +657,7 @@ void print_results(){
   }
 
   if (flag_dl){
-    flag_pro = flag_int = flag_wdp = flag_ff = flag_dz = flag_fl = 1;
+    
     Serial.print(convert_V_lux(v_obs));
     Serial.print(" ");
     Serial.print(ill_des);
@@ -675,14 +680,14 @@ void print_results(){
       pwm_TW = " ";
     }
     else {
-      change_led(pwm_TW.toInt());
+      change_led(200);
       //Serial.println(pwm_TW.toInt()*gain);
     }
   }
 
   if(!flag_dv && !flag_dl && !flag_dg){
     //Serial.println(v_obs);
-    Serial.println(lux_obs);
+    //Serial.println(lux_obs);
     //Serial.println(millis());
     //Serial.println(convert_lux_V(ill_des));
     //Serial.println(u_des);        //control signal
@@ -695,6 +700,7 @@ void print_results(){
     //Serial.println(toggle);
     //Serial.println(i);
     //Serial.println(p);
+    //Serial.println((t1-t2));
   }
 
 }
@@ -723,7 +729,7 @@ void loop()
       v_i = analogRead(sensorPin) / 204.6;
       t_change = micros();
       ill_des = 50;
-      dz = 3;
+      dz = 1;
       toggle_ant = HIGH;
     }
 
@@ -738,7 +744,7 @@ void loop()
       v_i = analogRead(sensorPin) / 204.6;
       t_change = micros();
       ill_des = 20;
-      dz = 1.5;
+      dz = 0.7;
       toggle_ant = LOW;
     }
 
