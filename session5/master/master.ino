@@ -11,9 +11,9 @@ void setup() {
 void loop() {
   char c;
   if(Serial.available() > 0 ) {
-  c = Serial.read();
-  Wire.beginTransmission(other_add);//get BUS
-  Wire.write(c); //send byte to address on BUS
-  Wire.endTransmission(); //release BUS
+    c = Serial.read();
+    Wire.beginTransmission(other_add);//get BUS
+    Wire.write(c); //send byte to address on BUS
+    Wire.endTransmission(); //release BUS
   }
 }
