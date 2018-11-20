@@ -33,14 +33,12 @@
 **************************************************************************/
 
 //msg_type
-#define COUNT_NODES "CNO"
-#define NODE "NOD"
 #define READ_MY_LED "RML"
 #define READ_YOUR_LED "RYL"
 #define CONF_READ_YOUR_LED "CML"
 #define DONE_READ "DR_"
 
-#define address 1
+#define address 2
 
 
 
@@ -68,6 +66,12 @@ int Vnoise = 0;
 //comunication
 char type_response_msg[4];
 int my_address;
+bool endcali = false;
+bool read_led = false;
+bool end_read = false;
+bool flag_turnON = false;
+int orig_addr = 0;
+
 
 //toggle
 bool toggle = LOW; //initial state of LED - turn off (toggle is LOW (0))
@@ -162,8 +166,7 @@ void setup() {
   Wire.onReceive(receive_msg);
 
   set_frequency();
-  count_nodes(); //determine the number of nodes
-  Serial.println(nodes_number);
+ 
   INIT_cali calib;
   calib.init_calibration();
 
@@ -172,7 +175,7 @@ void setup() {
   t_change = t_init;
   t1 = t_init;
   //Enable interruption
-  sei();
+  //sei();
 
 }
 
@@ -231,25 +234,6 @@ ISR(TIMER1_COMPA_vect){
 }
 
 void control_interrupt(){
-}
-/**************************************************************************
-
-      Function:
-
-      Arguments:
-      Return value:
-
-      Description: )
-
-**************************************************************************/
-void count_nodes(){
-  char str_send[5];
-  sprintf(str_send, "%s%d",COUNT_NODES , my_address);
-  Serial.println(str_send);
-  Wire.beginTransmission(bus_add);
-  Wire.write(str_send);
-  Wire.endTransmission();
-  Wire.setTimeout(5000);
 }
 
 /*****************************END_OF_SETUP********************************/
@@ -317,24 +301,71 @@ void count_nodes(){
     int v1, v;
     float i;
     char str_send[5];
+    int Vread = 0;
+    float lumi = 0;
 
-
-    if (my_address == 0){
-      //leader - begin the calibration process sending a message
-      analogWrite(ledPin, 255);
-      delay(100);
-
-      //send a msg warning to the other nodes to read my value led plus my address
-      sprintf(str_send, "%s%d",READ_MY_LED , 1);
-     
-      Wire.beginTransmission(bus_add);
-      Wire.write(str_send);
-      Wire.endTransmission();
+    if (my_address == 1){
+      flag_turnON = true;
     }
 
-    while(strcmp(type_response_msg, DONE_READ) != 0){}//waiting all the calibration process
-    
+    while(endcali == false){
+      
+      if(flag_turnON == true){
+        //leader - begin the calibration process sending a message
+        analogWrite(ledPin, 255);
+        delay(100);
 
+        //send a msg warning to the other nodes to read my value led plus my address
+        sprintf(str_send, "%s%d",READ_MY_LED , my_address);
+     
+        Wire.beginTransmission(bus_add);
+        Wire.write(str_send);
+        Wire.endTransmission();
+        flag_turnON = false;
+      }
+      if(end_read ==  true){
+        //when the node receives the confirmation from all the other nodes
+        Vread = analogRead(sensorPin); //read the iluminance value + noise
+        lumi = read_lux(Vread) - read_lux(Vnoise);//subtrat the noise
+        gain[my_address] = lumi / 255.0;//calculates the linera gain (lux/pwm)
+
+        end_read = false;
+        analogWrite(ledPin, 0);//turn off the led
+        delay(30);
+
+        if(my_address == 1){
+          //send a message to the other arduino informing that it wants to read the other node led on value
+          sprintf(str_send, "%s%d",READ_YOUR_LED , my_address);
+          Wire.beginTransmission(bus_add);
+          Wire.write(READ_YOUR_LED);
+          Wire.endTransmission();
+        }else if(my_address == 2){
+          //send a message to the other arduino informing that it wants to read the other node led on value
+          sprintf(str_send, "%s%d",DONE_READ , my_address);
+          Wire.beginTransmission(bus_add);
+          Wire.write(READ_YOUR_LED);
+          Wire.endTransmission();
+          endcali = true;
+        }
+      }  
+      if(read_led == true){
+        /*when receives this message means that the other arduino is going to read is own led value
+        so this arduino has to turn off his own led and read the lux of the other led*/
+        analogWrite(ledPin, 0);//turn off the led
+        delay(30);
+
+        Vread = analogRead(sensorPin); //read the iluminance value + noise
+        lumi = read_lux(Vread) - read_lux(Vnoise);//subtrat the noise
+        gain[orig_addr] = lumi / 255.0;//calculates the liner gain (lux/pwm)
+        read_led == false;  
+              
+        //send a message to the other arduino informing that it wants to read the other node led on value
+        sprintf(str_send, "%s%d",CONF_READ_YOUR_LED , my_address);
+        Wire.beginTransmission(bus_add);
+        Wire.write(CONF_READ_YOUR_LED);
+        Wire.endTransmission();
+      }
+    }
   }
   
 /*****************************END_OF_CLASS***********************************/
@@ -376,9 +407,7 @@ All messages are broadcast in the bus to all the nodes.
 void receive_msg(int numBytes){
 
   char msg_recv[10];
-  int Vread = 0;
-  float lumi = 0;
-  char type_msg [4], str_send[5];
+  char type_msg [4], str_send[7];
   int c = 0;
 
   while(Wire.available() > 0) { //check data on BUS
@@ -391,92 +420,27 @@ void receive_msg(int numBytes){
     type_msg[j] = msg_recv[j];
   }
   type_msg[3] = '\0'; 
-  Serial.println(msg_recv[0]);
+
+  orig_addr = int(msg_recv[4]);
+  Serial.println(msg_recv);
   
-  int orig_addr = int(msg_recv[4]);
-    
-  if (strcmp(type_msg, COUNT_NODES) == 0){
-      nodes_number ++;
-  
-      sprintf(str_send, "%s%d",NODE , my_address);
-      
-      Wire.beginTransmission(bus_add);
-      Wire.write(str_send);
-      Wire.endTransmission();
-      
-  }else if(strcmp(type_msg, NODE) == 0){
-      nodes_number ++;
-  }else if(strcmp(type_msg, READ_MY_LED) == 0){
-      /*when receives this message means that the other arduino is going to read is own led value
-      so this arduino has to turn off his own led and read the lux of the other led*/
-      analogWrite(ledPin, 0);//turn off the led
-      delay(30);
+  if(strcmp(type_msg, READ_MY_LED) == 0){
+      read_led = true;
 
-      Vread = analogRead(sensorPin); //read the iluminance value + noise
-      lumi = read_lux(Vread) - read_lux(Vnoise);//subtrat the noise
-      gain[orig_addr] = lumi / 255.0;//calculates the liner gain (lux/pwm)
-
-      //send a message to the other arduino informing that it's done
-      sprintf(str_send, "%s%d",CONF_READ_YOUR_LED , orig_addr);
-      Wire.beginTransmission(bus_add);
-      Wire.write(str_send);
-      Wire.endTransmission();
-
-  }else if(strcmp(type_msg, CONF_READ_YOUR_LED) == 0){
-      //confirmation that the other arduinos read the value of my led
-      if(my_address == orig_addr){
-        num_respon_msg ++;
-
-        if(num_respon_msg == nodes_number-1){
-        //when the node receives the confirmation from all the other nodes
-          Vread = analogRead(sensorPin); //read the iluminance value + noise
-          lumi = read_lux(Vread) - read_lux(Vnoise);//subtrat the noise
-          gain[my_address] = lumi / 255.0;//calculates the linera gain (lux/pwm)
-
-          analogWrite(ledPin, 0);//turn off the led
-          delay(30);
-
-          if(my_address != nodes_number - 1){
-            //send a message to the other arduino informing that it wants to read the other node led on value
-            sprintf(str_send, "%s%d",READ_YOUR_LED , my_address);
-            Wire.beginTransmission(bus_add);
-            Wire.write(READ_YOUR_LED);
-            Wire.endTransmission();
-          }else if (my_address == nodes_number - 1){
-            sprintf(str_send, "%s%d", DONE_READ , my_address);
-            Wire.beginTransmission(bus_add);
-            Wire.write(str_send);
-            Wire.endTransmission();
-            strcpy(type_response_msg, DONE_READ);
-          }
-          num_respon_msg = 0;
-        }
-      }
+  }else if(strcmp(type_msg, CONF_READ_YOUR_LED) == 0) {
+    if(my_address == orig_addr + 1){
+      end_read = true;
+    }  
   }else if(strcmp(type_msg, READ_YOUR_LED) == 0) {
       if(my_address == orig_addr + 1){
-        analogWrite(ledPin, 255);//turn on the led
-        delay(100);
-        //send a msg warning to the other nodes to read my value led plus my address
-        sprintf(str_send, "%s%d",READ_MY_LED , my_address);
-        Wire.beginTransmission(bus_add);
-        Wire.write(str_send);
-        Wire.endTransmission();
+        flag_turnON = true;
       }
   }else if(strcmp(type_msg, DONE_READ) == 0){
-      strcpy(type_response_msg, DONE_READ);
+     endcali = true;
   }
-   
-
-
-
-
-
-
-
-
-
-
+ 
 }
+
 
 /*****************************END_OF_PROTOCOL*******************************/
 
