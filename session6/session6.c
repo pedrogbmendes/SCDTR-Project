@@ -1,42 +1,17 @@
+
 #include <stdio.h>
+#include <stdlib.h>
 #include <pigpio.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <linux/i2c-dev.h>
+
 #define SLAVE_ADDR 0x48
-int main(int argc, char *argv[]) {
-
-	int status, j, key = 0;
 
 
-	if (gpioInitialise() < 0) {
-		printf("Erro 1\n"); return 1;
-	}
-
-	bsc_xfer_t xfer;
-
-	status = init_slave(xfer, SLAVE_ADDR);
-
-	while(key != "q") {
-		xfer.txCnt = 0;
-		status = bscXfer(&xfer);
-		printf("Received %d bytes\n", xfer.rxCnt);
-		for(j=0;j<xfer.rxCnt;j++)
-			printf("%c",xfer.rxBuf[j]);
-			printf("\n Press q to quit.\n");
-			key = getchar();
-	}
-
-	status = close_slave(xfer);
-
-	gpioTerminate();
-
-}
-
-
-int init_slave(bsc_xfer_t &xfer, int addr) {
-	gpioSetMode(19, PI_ALT3);
-	gpioSetMode(26, PI_ALT3);
+int init_slave(bsc_xfer_t xfer, int addr) {
+	gpioSetMode(3, PI_ALT0);
+	gpioSetMode(5, PI_ALT0);
 	xfer.control = (addr<<16) | /* Slave address */
 	(0x00<<13) | /* invert transmit status flags */
 	(0x00<<12) | /* enable host control */
@@ -55,7 +30,39 @@ int init_slave(bsc_xfer_t &xfer, int addr) {
 	return bscXfer(&xfer);
 }
 
-int close_slave(bsc_xfer_t &xfer) {
+int close_slave(bsc_xfer_t xfer) {
 	xfer.control = 0;
 	return bscXfer(&xfer);
+}
+
+
+
+
+void main(int argc, char *argv[]) {
+	int status, j, key = 0;
+
+	if (gpioInitialise() < 0) {
+		printf("Erro 1\n"); return 1;}
+
+	bsc_xfer_t xfer;
+
+	status = init_slave(xfer, SLAVE_ADDR);
+
+	while(1) {
+		xfer.txCnt = 0;
+		status = bscXfer(&xfer);
+
+		printf("Received %d bytes\n", xfer.rxCnt);
+		for(j=0;j<xfer.rxCnt;j++)
+			printf("%c",xfer.rxBuf[j]);
+
+	printf("\n Press q to quit.\n");
+
+	}
+
+
+	status = close_slave(xfer);
+
+	gpioTerminate();
+
 }
