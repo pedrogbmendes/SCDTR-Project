@@ -247,7 +247,7 @@ void count_nodes(){
   sprintf(str_send, "%s%d",COUNT_NODES , my_address);
   Serial.println(str_send);
   Wire.beginTransmission(bus_add);
-  Wire.write(str_send);
+  Wire.write(str_send, 5);
   Wire.endTransmission();
   Wire.setTimeout(5000);
 }
@@ -390,8 +390,8 @@ void receive_msg(int numBytes){
   for (int j=0; j<3; j++){
     type_msg[j] = msg_recv[j];
   }
-  type_msg[3] = '\0'; 
-  Serial.println(msg_recv[0]);
+  //type_msg[3] = '\0'; 
+  Serial.println(type_msg);
   
   int orig_addr = int(msg_recv[4]);
     

@@ -15,6 +15,7 @@ void loop() {
 void receiveEvent(int howMany) {
   while(Wire.available() > 0) { //check data on BUS
   char c = Wire.read(); //receive byte at I2S BUS
-  Serial.write(c); // echo on terminal
+  int lol = c;
+  Serial.println(lol); // echo on terminal
   }
 }
