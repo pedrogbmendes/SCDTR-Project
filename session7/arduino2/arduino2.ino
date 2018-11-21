@@ -96,7 +96,7 @@ const uint16_t t1_comp = 625;
 
 //define varibles of loop (main)
 int u_des;  //pwm signal desire to apply on led
-float gain[2]; //static gain for each led
+float gain[4]; //static gain for each led
 
 //PI variables
 float y_ant = 0, i_ant = 0, e_ant = 0, u_ant = 0; //previous values
@@ -170,9 +170,8 @@ void setup() {
   INIT_cali calib;
   calib.init_calibration();
 
-  Serial.println(gain[0]);
   Serial.println(gain[1]);
-  
+  Serial.println(gain[2]);
   v_i = 0;
   t_init = micros();
   t_change = t_init;
@@ -312,7 +311,7 @@ void control_interrupt(){
     }
 
     while(endcali == false){
-      
+
       if(flag_turnON == true){
         //leader - begin the calibration process sending a message
         analogWrite(ledPin, 255);
@@ -331,6 +330,7 @@ void control_interrupt(){
         Vread = analogRead(sensorPin); //read the iluminance value + noise
         lumi = read_lux(Vread) - read_lux(Vnoise);//subtrat the noise
         gain[my_address] = lumi / 255.0;//calculates the linera gain (lux/pwm)
+        Serial.println(lumi);
         end_read = false;
         analogWrite(ledPin, 0);//turn off the led
         delay(30);
@@ -359,6 +359,7 @@ void control_interrupt(){
 
         Vread = analogRead(sensorPin); //read the iluminance value + noise
         lumi = read_lux(Vread) - read_lux(Vnoise);//subtrat the noise
+        Serial.println(lumi);
         gain[orig_addr] = lumi / 255.0;//calculates the liner gain (lux/pwm)
         read_led = false;  
               
@@ -424,7 +425,7 @@ void receive_msg(int numBytes){
   }
   type_msg[3] = '\0'; 
 
-  orig_addr = int(msg_recv[4]);
+  orig_addr = msg_recv[3] - '0';//converto to int
   Serial.println(msg_recv);
   
   if(strcmp(type_msg, READ_MY_LED) == 0){
@@ -432,7 +433,7 @@ void receive_msg(int numBytes){
 
   }else if(strcmp(type_msg, CONF_READ_YOUR_LED) == 0) {
       end_read = true;
-
+      
   }else if(strcmp(type_msg, READ_YOUR_LED) == 0) {
         flag_turnON = true;
 

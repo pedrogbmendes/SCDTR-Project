@@ -35,7 +35,7 @@
 //msg_type
 #define READ_MY_LED "RML"
 #define READ_YOUR_LED "RYL"
-#define CONF_READ_YOUR_LED "CML"
+#define CONF_READ_YOUR_LED "CYL"
 #define DONE_READ "DR_"
 
 #define address 1
@@ -96,7 +96,7 @@ const uint16_t t1_comp = 625;
 
 //define varibles of loop (main)
 int u_des;  //pwm signal desire to apply on led
-float gain[127]; //static gain for each led
+float gain[4]; //static gain for each led
 
 //PI variables
 float y_ant = 0, i_ant = 0, e_ant = 0, u_ant = 0; //previous values
@@ -170,6 +170,8 @@ void setup() {
   INIT_cali calib;
   calib.init_calibration();
 
+  Serial.println(gain[1]);
+  Serial.println(gain[2]);
   v_i = 0;
   t_init = micros();
   t_change = t_init;
@@ -262,7 +264,7 @@ void control_interrupt(){
   **************************************************************************/
   void INIT_cali::init_calibration(){
     init_noise(); //read the noise and external luminance
-    delay(100);
+    delay(1000);
     initialization();//calibration process
   }
 
@@ -313,8 +315,8 @@ void control_interrupt(){
       if(flag_turnON == true){
         //leader - begin the calibration process sending a message
         analogWrite(ledPin, 255);
-        delay(100);
-
+        delay(1000);
+        Serial.println("ola");
         //send a msg warning to the other nodes to read my value led plus my address
         sprintf(str_send, "%s%d",READ_MY_LED , my_address);
      
@@ -323,12 +325,12 @@ void control_interrupt(){
         Wire.endTransmission();
         flag_turnON = false;
       }
-      if(end_read ==  true){
+      else if(end_read ==  true){
         //when the node receives the confirmation from all the other nodes
         Vread = analogRead(sensorPin); //read the iluminance value + noise
         lumi = read_lux(Vread) - read_lux(Vnoise);//subtrat the noise
         gain[my_address] = lumi / 255.0;//calculates the linera gain (lux/pwm)
-
+        Serial.println(lumi);
         end_read = false;
         analogWrite(ledPin, 0);//turn off the led
         delay(30);
@@ -337,18 +339,18 @@ void control_interrupt(){
           //send a message to the other arduino informing that it wants to read the other node led on value
           sprintf(str_send, "%s%d",READ_YOUR_LED , my_address);
           Wire.beginTransmission(bus_add);
-          Wire.write(READ_YOUR_LED);
+          Wire.write(str_send);
           Wire.endTransmission();
         }else if(my_address == 2){
           //send a message to the other arduino informing that it wants to read the other node led on value
           sprintf(str_send, "%s%d",DONE_READ , my_address);
           Wire.beginTransmission(bus_add);
-          Wire.write(READ_YOUR_LED);
+          Wire.write(str_send);
           Wire.endTransmission();
           endcali = true;
         }
       }  
-      if(read_led == true){
+      else if(read_led == true){
         /*when receives this message means that the other arduino is going to read is own led value
         so this arduino has to turn off his own led and read the lux of the other led*/
         analogWrite(ledPin, 0);//turn off the led
@@ -356,13 +358,14 @@ void control_interrupt(){
 
         Vread = analogRead(sensorPin); //read the iluminance value + noise
         lumi = read_lux(Vread) - read_lux(Vnoise);//subtrat the noise
+         Serial.println(lumi);
         gain[orig_addr] = lumi / 255.0;//calculates the liner gain (lux/pwm)
-        read_led == false;  
+        read_led = false;  
               
         //send a message to the other arduino informing that it wants to read the other node led on value
         sprintf(str_send, "%s%d",CONF_READ_YOUR_LED , my_address);
         Wire.beginTransmission(bus_add);
-        Wire.write(CONF_READ_YOUR_LED);
+        Wire.write(str_send);
         Wire.endTransmission();
       }
     }
@@ -410,6 +413,7 @@ void receive_msg(int numBytes){
   char type_msg [4], str_send[7];
   int c = 0;
 
+
   while(Wire.available() > 0) { //check data on BUS
     msg_recv[c] = Wire.read(); //receive byte at I2S BUS
     c++;
@@ -420,21 +424,18 @@ void receive_msg(int numBytes){
     type_msg[j] = msg_recv[j];
   }
   type_msg[3] = '\0'; 
-
-  orig_addr = int(msg_recv[4]);
+  orig_addr = msg_recv[3] - '0';//converto to int
   Serial.println(msg_recv);
   
   if(strcmp(type_msg, READ_MY_LED) == 0){
       read_led = true;
 
   }else if(strcmp(type_msg, CONF_READ_YOUR_LED) == 0) {
-    if(my_address == orig_addr + 1){
       end_read = true;
-    }  
+      
   }else if(strcmp(type_msg, READ_YOUR_LED) == 0) {
-      if(my_address == orig_addr + 1){
-        flag_turnON = true;
-      }
+      flag_turnON = true;
+
   }else if(strcmp(type_msg, DONE_READ) == 0){
      endcali = true;
   }
