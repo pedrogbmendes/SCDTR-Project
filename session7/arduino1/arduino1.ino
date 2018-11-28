@@ -171,7 +171,7 @@ class node_class node;
 
 /**************************************************************************
 
-      STEP UP
+      SETUP
 
 **************************************************************************/
 void setup() {
@@ -194,8 +194,9 @@ void setup() {
 
   Serial.println(gain[0]);
   Serial.println(gain[1]);
-
-  concensus(50.0);
+  
+  delay(1000);
+  concensus(20.0);
   Serial.println(lu);
   
   v_i = 0;
@@ -530,41 +531,32 @@ void concensus(float lumi_desire){
   node.L = lumi_desire;
 
 
-  for(int h=0; h<10; h++){
+  for(int h=0; h<200; h++){
     primal_solve();// return the cost and dn[2]
     node.d[0] = dn[0];
     node.d[1] = dn[1];
-
+    
     //each node needs to send d
     if (node.d[0] < 10){
         dtostrf(node.d[0],4,2,char_d0);
-    }else if (node.d[0] > 10 && node.d[0]<100){
+    }else if (node.d[0] >= 10 && node.d[0]<100){
         dtostrf(node.d[0],5,2,char_d0);
-    }else if (node.d[0] > 100){
+    }else if (node.d[0] >= 100){
         dtostrf(node.d[0],6,2,char_d0);
     }
-    if (node.d[2] < 10){
+    if (node.d[1] < 10){
         dtostrf(node.d[1],4,2,char_d1);
-    }else if (node.d[1] > 10 && node.d[1]<100){
+    }else if (node.d[1] >= 10 && node.d[1]<100){
         dtostrf(node.d[1],5,2,char_d1);
-    }else if (node.d[1] > 100){
+    }else if (node.d[1] >= 100){
         dtostrf(node.d[1],6,2,char_d1);
     }
     
     //send a message with the updated data
     sprintf(str_send, "%s%d%s_%s", SEND_RESULT, my_address, char_d0, char_d1);
-    Serial.println("send:");
-    Serial.println(h);
-    Serial.println(str_send);
     Wire.beginTransmission(bus_add);
     Wire.write(str_send);
     Wire.endTransmission();
-  
-    if (h==9){
-            Wire.beginTransmission(bus_add);
-    Wire.write("ultimo");
-    Wire.endTransmission();
-    }
       
     while(!flag_consensus){}//waiting for the response
     flag_consensus = false;
