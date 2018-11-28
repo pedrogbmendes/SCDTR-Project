@@ -70,15 +70,14 @@ bool end_read = false;
 bool flag_turnON = false;
 int orig_addr = 0;
 
-
 //consensus
-float d[2] = {0,0};
 float dn[2];
-float lu;
 float rho = 0.07;
 float cost = 0;
 float d_neigh[2] = {0,0};
 bool flag_consensus = false;
+float lu = 0.0;
+
 
 //toggle
 bool toggle = LOW; //initial state of LED - turn off (toggle is LOW (0))
@@ -170,7 +169,6 @@ struct node_class{
 class node_class node;
 
 
-
 /**************************************************************************
 
       STEP UP
@@ -194,8 +192,12 @@ void setup() {
   INIT_cali calib;
   calib.init_calibration();
 
-  //Serial.println(gain[0]);
-  //Serial.println(gain[1]);
+  Serial.println(gain[0]);
+  Serial.println(gain[1]);
+
+  concensus(50.0);
+  Serial.println(lu);
+  
   v_i = 0;
   t_init = micros();
   t_change = t_init;
@@ -354,7 +356,7 @@ void control_interrupt(){
         Vread = analogRead(sensorPin); //read the iluminance value + noise
         lumi = read_lux(Vread) - read_lux(Vnoise);//subtrat the noise
         gain[my_address-1] = lumi / 255.0;//calculates the linera gain (lux/pwm)
-        Serial.println(lumi);
+        //Serial.println(lumi);
         end_read = false;
         analogWrite(ledPin, 0);//turn off the led
         delay(30);
@@ -382,7 +384,7 @@ void control_interrupt(){
 
         Vread = analogRead(sensorPin); //read the iluminance value + noise
         lumi = read_lux(Vread) - read_lux(Vnoise);//subtrat the noise
-         Serial.println(lumi);
+        //Serial.println(lumi);
         gain[orig_addr-1] = lumi / 255.0;//calculates the liner gain (lux/pwm)
         read_led = false;
 
@@ -465,7 +467,6 @@ void receive_msg(int numBytes){
      endcali = true;
      
   }else if(strcmp(type_msg, SEND_RESULT) == 0){
-    flag_consensus =  true;
     j = 4;
     c = 0;
 
@@ -474,17 +475,21 @@ void receive_msg(int numBytes){
       j ++;
       c ++;
     }
+    num_d1_msg[c] = '\0';    
     d_neigh[0] = atof(num_d1_msg);
 
     j ++;
     c = 0;
  
     while(msg_recv[j] != '\0'){
-      num_d2_msg[j] = msg_recv[j];      
+      num_d2_msg[c] = msg_recv[j];      
       j ++;
       c ++;
     }
+    num_d2_msg[c] = '\0'; 
     d_neigh[1] = atof(num_d2_msg);
+    
+    flag_consensus = true;
   }
 
 }
@@ -506,9 +511,10 @@ void receive_msg(int numBytes){
 **************************************************************************/
 void concensus(float lumi_desire){
 
-  char str_send[20];
-
-  node.index = my_address;
+  char str_send[30];
+  char char_d0[10], char_d1[10];
+  
+  node.index = my_address-1;
   node.d[0] = 0.0;
   node.d[1] = 0.0;
   node.d_av[0] = 0.0;
@@ -518,7 +524,7 @@ void concensus(float lumi_desire){
   node.k[0] = gain[0];
   node.k[1] = gain[1];
   node.n = sq(node.k[0]) + sq(node.k[1]);//sq(sqrt(sq(node.k[0]) + sq(node.k[1])));
-  node.m = node.n - sq(node.k[my_address]);
+  node.m = node.n - sq(node.k[node.index]);
   node.c = 1;
   node.o = read_lux(Vnoise);
   node.L = lumi_desire;
@@ -528,30 +534,48 @@ void concensus(float lumi_desire){
     primal_solve();// return the cost and dn[2]
     node.d[0] = dn[0];
     node.d[1] = dn[1];
-    
+
+    //each node needs to send d
+
+    //send a message with the updated data
+    if (node.d[0] < 10){
+        dtostrf(node.d[0],4,2,char_d0);
+    }else if (node.d[0] > 10 && node.d[0]<100){
+        dtostrf(node.d[0],5,2,char_d0);
+    }else if (node.d[0] > 100){
+        dtostrf(node.d[0],6,2,char_d0);
+    }
+    if (node.d[2] < 10){
+        dtostrf(node.d[1],4,2,char_d1);
+    }else if (node.d[1] > 10 && node.d[1]<100){
+        dtostrf(node.d[1],5,2,char_d1);
+    }else if (node.d[1] > 100){
+        dtostrf(node.d[1],6,2,char_d1);
+    }
+    Serial.println("send:");
+    sprintf(str_send, "%s%d%s_%s", SEND_RESULT, my_address, char_d0, char_d1);
+    Serial.println(str_send);
+    Wire.beginTransmission(bus_add);
+    Wire.write(str_send);
+    Wire.endTransmission();
+
+    Serial.println("loop");
+    while(!flag_consensus){}//waiting for the response
+    flag_consensus = false;
+    Serial.println("adeus");
     //Compute average with available data
-    node.d_av[0] = (node.d[0] - d_neigh[0])/2;
-    node.d_av[1] = (node.d[1] - d_neigh[1])/2;
+    node.d_av[0] = (node.d[0] + d_neigh[0])/2;
+    node.d_av[1] = (node.d[1] + d_neigh[1])/2;
 
     //Update local lagrangians
     node.y[0]  = node.y[0] + rho*(node.d[0]-node.d_av[0]);
     node.y[1]  = node.y[1] + rho*(node.d[1]-node.d_av[1]);
 
-    //each node needs to send d
 
-    //send a message with the updated data
-    sprintf(str_send, "%s%d%f%_f", SEND_RESULT, my_address, d[0], d[1]);
-    Wire.beginTransmission(bus_add);
-    Wire.write(str_send);
-    Wire.endTransmission();
-
-    while(flag_consensus != true){}//waiting for the response
-    
-    flag_consensus = false;
   }
 
+  lu = node.k[0]*node.d_av[0] + node.k[1]*node.d_av[1] + node.o; 
 }
-
 
 
 /**************************************************************************
