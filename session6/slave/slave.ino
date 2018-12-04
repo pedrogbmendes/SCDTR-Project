@@ -3,7 +3,7 @@
 const int own_address = 4; //this dev address
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   Wire.begin(own_address); // receive data
   Wire.onReceive(receiveEvent); //event handler
 }

@@ -2,12 +2,12 @@
 #include <Wire.h>
 
 const int other_add = 4; //other dev address
-char buf[5];
+char buf[20];
 int i=0;
 
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   Wire.begin(); // join as a master
 }
 
