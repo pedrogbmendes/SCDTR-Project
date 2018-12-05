@@ -58,7 +58,7 @@ const int ledPin = 3; // LED connected to digital pin 3 (PWM - timer2)
 const int switchPin = 2; // LED connected to digital pin 2 (Switch state)
 const int sensorPin = 0; // connect sensor to analog input 0
 
-const int bus_add = 2; //other dev address
+const int bus_add = 1; //other dev address
 
 //Initialization
 int Vnoise = 0;
@@ -107,8 +107,8 @@ int u_des;  //pwm signal desire to apply on led
 float gain[2]; //static gain for each led
 
 //Calibration of LDR
-float m;
-float b;
+float m = -0.705;
+float b = 4.8155;
 
 //PI variables
 float y_ant = 0, i_ant = 0, e_ant = 0, u_ant = 0; //previous values
@@ -205,10 +205,11 @@ void setup() {
   my_address = EEPROM.read(0);
 
   //write the LDR calibration parameters in the eeprom
-  EEPROM.write(1, -0.75);
-  m = EEPROM.read(1);  
-  EEPROM.write(2, 5.7);
-  b = EEPROM.read(2);
+  //EEPROM.write(1, -0.75);
+  //m = EEPROM.read(1);  
+  //EEPROM.write(2, 5.7);
+  //b = EEPROM.read(2);
+
 
   Wire.begin(my_address);
   Wire.onReceive(receive_msg);
@@ -224,7 +225,7 @@ void setup() {
   delay(1000);
   
   algoritm_consensus.concensus(50.0);
-  Serial.println(lu);
+  Serial.println(lux_des);
   
   v_i = 0;
   t_init = micros();
@@ -382,6 +383,7 @@ ISR(TIMER1_COMPA_vect){
         //when the node receives the confirmation from all the other nodes
         Vread = analogRead(sensorPin); //read the iluminance value + noise
         lumi = read_lux(Vread) - read_lux(Vnoise);//subtrat the noise
+        Serial.println(Vread);
         gain[my_address-1] = lumi / 255.0;//calculates the linera gain (lux/pwm)
         //Serial.println(lumi);
         end_read = false;
@@ -462,7 +464,7 @@ ISR(TIMER1_COMPA_vect){
     node.d_av[1] = 0.0;
     node.y[0] = 0.0;
     node.y[1] = 0.0;  
-    node.k[0] = (gain[0]*100.0)/255;
+    node.k[0] = (gain[0]*255.0)/100;
     node.k[1] = (gain[1]*100.0)/255;
     node.n = sq(node.k[0]) + sq(node.k[1]);//sq(sqrt(sq(node.k[0]) + sq(node.k[1])));
     node.m = node.n - sq(node.k[node.index]);
@@ -471,7 +473,7 @@ ISR(TIMER1_COMPA_vect){
     node.L = lumi_desire;
   
   
-    for(int h=0; h<200; h++){
+    for(int h=0; h<50; h++){
       primal_solve(node);// return the cost and dn[2]
       node.d[0] = dn[0];
       node.d[1] = dn[1];
