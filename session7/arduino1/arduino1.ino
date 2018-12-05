@@ -42,19 +42,8 @@
 //consensus messages type
 #define SEND_RESULT "SRD"
 
-//messages to the raspberry
-#define RESULT_GAIN "RGa"
-#define RESULT_CONSENSUS "RCo"
-#define CHANGE_LUX "CLu"
-#define MEASURE_LUX "MLu"
-#define MEASURE_NOISE "MNo"
-#define RESULT_PWM "PWM"
-
-
-
 //address
 #define address 1
-
 
 
 
@@ -89,6 +78,7 @@ float cost = 0;
 float d_neigh[2] = {0,0};
 volatile bool flag_consensus = false;
 float lu = 0.0;
+int d_con[2] = {0,0};
 
 
 //toggle
@@ -114,7 +104,11 @@ const uint16_t t1_comp = 625;
 
 //define varibles of loop (main)
 int u_des;  //pwm signal desire to apply on led
-float gain[4]; //static gain for each led
+float gain[2]; //static gain for each led
+
+//Calibration of LDR
+float m;
+float b;
 
 //PI variables
 float y_ant = 0, i_ant = 0, e_ant = 0, u_ant = 0; //previous values
@@ -124,8 +118,7 @@ float p = 0, i = 0;
 //variables of controller
 float ill_des, t_change; //luminace desire and new initial time
 float v_obs = 0, v_i = 0, v_des = 0; //observed, initial and desired tension
-float error = 0; //error of desired and observed luminance
-int u_fb, u_ff; //feedback and feedforward
+int u_fb, u_con; //feedback and feedforward
 double lux_des = 0, lux_obs = 0; //desired and observed luminance
 float dz;
 
@@ -190,6 +183,11 @@ class consensus_class{
 
 
 
+INIT_cali calib;
+consensus_class algoritm_consensus;
+
+
+
 /**************************************************************************
 
       SETUP
@@ -202,22 +200,29 @@ void setup() {
 
   Serial.begin(115200);
 
+  //write the address in the eeprom
   EEPROM.write(0, address);
   my_address = EEPROM.read(0);
+
+  //write the LDR calibration parameters in the eeprom
+  EEPROM.write(1, -0.6403);
+  b = EEPROM.read(1);  
+  EEPROM.write(2, 4.9);
+  m = EEPROM.read(2);
 
   Wire.begin(my_address);
   Wire.onReceive(receive_msg);
 
   set_frequency();
 
-  INIT_cali calib;
+  
   calib.init_calibration();
 
   Serial.println(gain[0]);
   Serial.println(gain[1]);
   
   delay(1000);
-  consensus_class algoritm_consensus;
+  
   algoritm_consensus.concensus(50.0);
   Serial.println(lu);
   
@@ -284,8 +289,7 @@ ISR(TIMER1_COMPA_vect){
    control_interrupt();
 }
 
-void control_interrupt(){
-}
+
 
 /*****************************END_OF_SETUP********************************/
 
@@ -434,8 +438,6 @@ void control_interrupt(){
 
 
 
-
-
   /**************************************************************************
   
         Function:
@@ -450,7 +452,6 @@ void control_interrupt(){
   
     char str_send[30];
     char char_d0[10], char_d1[10];
-  
     node_class node;
   
     node.index = my_address-1;
@@ -460,8 +461,8 @@ void control_interrupt(){
     node.d_av[1] = 0.0;
     node.y[0] = 0.0;
     node.y[1] = 0.0;  
-    node.k[0] = gain[0];
-    node.k[1] = gain[1];
+    node.k[0] = (gain[0]*100.0)/255;
+    node.k[1] = (gain[1]*100.0)/255;
     node.n = sq(node.k[0]) + sq(node.k[1]);//sq(sqrt(sq(node.k[0]) + sq(node.k[1])));
     node.m = node.n - sq(node.k[node.index]);
     node.c = 1;
@@ -509,8 +510,13 @@ void control_interrupt(){
   
   
     }
-  
-    lu = node.k[0]*node.d_av[0] + node.k[1]*node.d_av[1] + node.o; 
+    d_con[0] = int((node.d_av[0]*255.0)/100);
+    d_con[1] = int((node.d_av[1]*255.0)/100);
+
+    u_con = flag_ff * d_con[my_address-1];
+    
+    lux_des = gain[0]* d_con[0] + gain[1]* d_con[1] + node.o; 
+   
   }
   
   
@@ -757,9 +763,6 @@ void control_interrupt(){
 
 
 
-
-
-
 /**************************************************************************
 
       PROTOCOL OF MESSAGES
@@ -767,17 +770,17 @@ void control_interrupt(){
 **************************************************************************
 
 type                  purpose
-COUNT_NODES           count all nodes
-NODE                  inform ending of counting nodes
 READ_MY_LED           inform all the nodes to read the sender ledON value
 READ_YOUR_LED         inform a node that another node wants to read its ledON value
 CONF_READ_YOUR_LED    inform that a node read the ledON value of the receiving node
 DONE_READ             inform calibration is finish
 
+SEND_RESULT           send the values of consensus algorithm
 
-All messages are broadcast in the bus to all the nodes.
+-other messeges:
+  - from the arduino to raspberry pi: update the database
 
-**************************************************************************/
+.**************************************************************************/
 
 
 
@@ -852,11 +855,69 @@ void receive_msg(int numBytes){
 
 }
 
-/*****************************END_OF_PROTOCOL*******************************/
+
+
+/**************************************************************************
+
+      Function:
+
+      Arguments:mode
+                  - mode=false -> no need to send the reference lux value
+                  - mode=true ->  need to send the reference lux value
+      Return value:
+
+      Description: )
+
+**************************************************************************/
+
+void send_data_to_rasp(bool mode){
+  unsigned long t_send;
+  char refLux_char[10], meaLux_char[10];
+  char str_send[30];
+  
+  t_send = millis() - t_init;
+  
+  if(ill_des < 10){
+    dtostrf(ill_des,4,2,refLux_char);
+  }else if (ill_des >= 10 && ill_des < 100){
+    dtostrf(ill_des,5,2,refLux_char);
+  }else if (ill_des >= 100){
+    dtostrf(ill_des,6,2,refLux_char);
+  }
+
+  if(lux_obs < 10){
+    dtostrf(lux_obs,4,2,meaLux_char);
+  }else if (lux_obs >= 10 && lux_obs < 100){
+    dtostrf(lux_obs,5,2,meaLux_char);
+  }else if (lux_obs >= 100){
+    dtostrf(lux_obs,6,2,meaLux_char);
+  }
+
+  if(mode == true){
+    //send a message with the new data to the raspberry (send ref lux)
+    sprintf(str_send, "%d-%lu:%s,%d,%s", my_address,t_send,meaLux_char,u_des,refLux_char);
+    Wire.beginTransmission(127); //address of the raspberry pi
+    Wire.write(str_send);
+    Wire.endTransmission(); 
+  }else{
+    //send a message with the new data to the raspberry( don't send ref lux)
+    sprintf(str_send, "%d-%lu:%s,%d", my_address,t_send,meaLux_char, u_des);
+    Wire.beginTransmission(127); //address of the raspberry pi
+    Wire.write(str_send);
+    Wire.endTransmission(); 
+
+    
+  }
+}
 
 
 
 
+/***************************************************************************
+  
+                      FUNCTIONS OF THE CONTROLLER
+ 
+ **************************************************************************/
 
 
 
@@ -971,9 +1032,6 @@ double convert_V_lux(float V_r) {
   float R_ldr;
   double i_lux;
 
-  //Calibration of LDR
-  float m = -0.62;
-  float b = 4.8;
 
   R_ldr = (5.0 - V_r) * (R1 / V_r); // resistance of LDR
   i_lux = pow(10.0, ((log10(R_ldr) - b) / m )); //non-linear function
@@ -994,10 +1052,6 @@ double convert_V_lux(float V_r) {
 
 **************************************************************************/
 float convert_lux_R(float i_lux){
-
-  //Calibration of LDR
-  float m = -0.62;
-  float b = 4.8;
 
   return pow(10.0, (m * log10(i_lux) + b));
 }
@@ -1042,13 +1096,6 @@ float convert_lux_V(float ill_desire){
 }
 
 
-
-
-
-
-
-
-
 /**************************************************************************
 
       Function: change_led()
@@ -1066,9 +1113,186 @@ void change_led(int u){
 }
 
 
+/**************************************************************************
 
+      Function: feedback_control(float lux_des, float lux_obs)
+
+      Arguments: desired and observed luminance
+      Return value: pwm value
+
+      Description: The feedback control function receives the desired and
+  observed iluminance and calculates the error between these two. This contro-
+  ler is a PID, that means that has a proportional and a integral part. The
+  error multiples by the proportional gain. The integral part integrates the
+  error
+
+**************************************************************************/
+int feedback_control(){
+  float kp = 0.07, ki = 350;
+  float k2, u;
+  float T = .01;
+  float u_sat, err;
+
+  k2 = kp * ki * (T / 2);
+
+  //calculates the error between the desired and observed luminance
+  err = lux_des - lux_obs;
+
+  /*deadzone - if teh error is very small, it's aproximanted by zero */
+  if (abs(err) < flag_dz * dz) {
+      err = 0;
+    }
+
+  //proportional part
+  p = kp * err ;
+
+  //integral part
+  i = i_ant + k2 * (err + e_ant) + flag_wdp * u_wdp;
+
+  //control signal
+  u = flag_pro * p + flag_int * i ;
+
+  //Saturation of the signal control
+  if (u > 255 - u_con) {
+    u_sat = 255 - u_con;
+  } else if (u < - u_con) {
+    u_sat = - u_con;
+  } else {
+    u_sat = u;
+  }
+
+  //Anti-windup: used to create a boundary for the integrated error
+  u_wdp = u_sat - u;
+
+  //stores the value for next time
+  y_ant = lux_obs;
+  i_ant = i;
+  e_ant = err;
+
+  return int (u);
+}
+
+
+/**************************************************************************
+
+      Function: controller_interrupt ()
+
+      Arguments: No arguments
+      Return value: No return value
+
+      Description: Function that runs when the interruption is triggered.
+  Running the feedback function and using the feedforward calculates the
+  control  value (pwm) to apply to the led.
+
+**************************************************************************/
+void control_interrupt(){
+
+  t2 = t1;
+  t1 = micros();
+
+  
+  u_fb = feedback_control();
+  u_des = u_fb + u_con;
+
+  //flickering effect
+  if (u_ant <= 0 && u_des <= 3 && flag_fl == 1) {
+    u_des = 0;
+  }
+
+  //saturation
+  if (u_des > 255) {
+    u_des = 255;
+  } else if (u_des < 0) {
+    u_des = 0;
+  }
+
+  u_ant = u_des;
+}
+
+
+/**************************************************************************
+
+      Function: acquire_samples()
+
+      Arguments: No arguments
+      Return value: No return value
+
+      Description: Read the value of voltage using the analog input
+  port 0 (sensorPin) and converts the read value in voltage.
+
+**************************************************************************/
+void acquire_samples(){
+  v_obs = analogRead(sensorPin) / 204.6;
+  lux_obs = convert_V_lux(v_obs);
+}
+
+
+/**************************************************************************
+
+      Function: loop()
+
+      Arguments: No arguments
+      Return value: No return value
+
+      Description:
+
+**************************************************************************/
+void new_consensus_result(){
+  
+  acquire_samples();
+  send_data_to_rasp(false);
+  
+}
+
+/**************************************************************************
+
+      Function: loop()
+
+      Arguments: No arguments
+      Return value: No return value
+
+      Description:
+
+**************************************************************************/
 void loop() {
+  
+  verify_toggle();
 
+  if (toggle) {
+    //toggle is HIGH
+
+    if (!toggle_ant) {
+      //change state
+      v_i = analogRead(sensorPin) / 204.6;
+      t_change = micros();
+      ill_des = 50;
+      dz = 1;
+      toggle_ant = HIGH;
+      algoritm_consensus.concensus(ill_des);
+      new_consensus_result();
+    }
+
+    acquire_samples();
+    change_led(u_des);
+
+  } else {
+    //toggle is LOW - LED is turn off
+
+    if (toggle_ant) {
+      v_i = analogRead(sensorPin) / 204.6;
+      t_change = micros();
+      ill_des = 20;
+      dz = 0.7;
+      toggle_ant = LOW;
+      algoritm_consensus.concensus(ill_des);
+      new_consensus_result();
+    }
+
+    acquire_samples();
+    change_led(u_des);
+  }
+
+  //print_results();
 
 
 }
