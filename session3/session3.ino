@@ -153,7 +153,7 @@ double read_lux(int rate)
   R_ldr = (5.0-V_r)*(R1/V_r);
   i_lux = pow(10.0, ((log10(R_ldr)-b)/m ));
   // Serial.println("\n lux:");
-  Serial.println(V_r);
+  //Serial.println(V_r);
   // Serial.println(R_ldr);
   //Serial.println(i_lux);
 
@@ -178,7 +178,7 @@ void change_led()
 {
   double i_lux;
   int rate;
-  float v_rate[1000];
+  double v_rate;
   int i;
   unsigned long t[1000];
 
@@ -449,7 +449,7 @@ analogWrite(ledPin, 0);
 
 
   
-   //255
+ /*  //255
    for (i=0; i<100; i++){  
       analogWrite(ledPin, 255); //steps
       rate = analogRead(sensorPin);
@@ -559,15 +559,16 @@ analogWrite(ledPin, 0);
       analogWrite(ledPin, 255);
   delay(1000);
 
-   
+   */
         //25
-   for (i=900; i<1000; i++){  
-      analogWrite(ledPin, 25); //steps
+   for (i=0; i<256; i++){  
+      analogWrite(ledPin, i); //steps
       rate = analogRead(sensorPin);
-      t[i] = micros()- t_init;
-      v_rate[i] = rate/205.205; 
-      Serial.println( v_rate[i]);
-      Serial.println( t[i]);
+      //t[i] = micros()- t_init;
+      v_rate = rate/205.205; 
+      Serial.println( rate);
+      //Serial.println( t[i]);
+      delay(1000);
    }
 
       
@@ -673,7 +674,7 @@ float rate;
   //verify_toggle(); 
   toggle=1;
   
-  for(int i = 0; i < 256; i+=10){
+  for(int i = 0; i < 256; i++){
     analogWrite(ledPin, i);
     delay(1000);
     rate = analogRead(sensorPin);
