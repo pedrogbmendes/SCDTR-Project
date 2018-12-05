@@ -4,7 +4,7 @@
 
       Project:
          - Real-Time Cooperative Decentralized Control of a Smart
-  Office Illumination System: Part1
+  Office Illumination System
 
       Authors:
         - Pedro Gonçalo Mendes, 81046, pedrogoncalomendes@tecnico.ulisboa.pt
@@ -69,7 +69,6 @@ volatile bool read_led = false;
 volatile bool end_read = false;
 volatile bool flag_turnON = false;
 int orig_addr = 0;
-
 
 //consensus
 float dn[2];
@@ -154,26 +153,34 @@ class INIT_cali{
 };
 
 
-struct node_class{
-  int index;
-  float d[2];
-  float d_av[2];
-  float y[2];
-  float k[2];
-  float n;
-  float m;
-  float c;
-  float o;
-  float L;
-};
-
-class node_class node;
+class consensus_class{
+  struct node_class{
+    int index;
+    float d[2];
+    float d_av[2];
+    float y[2];
+    float k[2];
+    float n;
+    float m;
+    float c;
+    float o;
+    float L;
+  };
+  
+  public:
+    void concensus(float node);
+  private:
+    void primal_solve(node_class node);
+    int check_feasibility(node_class no, float dr[2]);
+    float evaluate_cost(node_class no, float dr[2]);
+    
+  };
 
 
 
 /**************************************************************************
 
-      STEP UP
+      SETUP
 
 **************************************************************************/
 void setup() {
@@ -198,9 +205,10 @@ void setup() {
   Serial.println(gain[1]);
   
   delay(1000);
-  concensus(50.0);
+  consensus_class algoritm_consensus;
+  algoritm_consensus.concensus(50.0);
   Serial.println(lu);
-    
+  
   v_i = 0;
   t_init = micros();
   t_change = t_init;
@@ -406,6 +414,340 @@ void control_interrupt(){
 
 
 
+/**************************************************************************
+
+      CLASS consensus
+
+**************************************************************************/
+
+
+
+
+
+
+  /**************************************************************************
+  
+        Function:
+  
+        Arguments:
+        Return value:
+  
+        Description: )
+  
+  **************************************************************************/
+  void consensus_class::concensus(float lumi_desire){
+  
+    char str_send[30];
+    char char_d0[10], char_d1[10];
+  
+    node_class node;
+  
+    node.index = my_address-1;
+    node.d[0] = 0.0;
+    node.d[1] = 0.0;
+    node.d_av[0] = 0.0;
+    node.d_av[1] = 0.0;
+    node.y[0] = 0.0;
+    node.y[1] = 0.0;  
+    node.k[0] = gain[0];
+    node.k[1] = gain[1];
+    node.n = sq(node.k[0]) + sq(node.k[1]);//sq(sqrt(sq(node.k[0]) + sq(node.k[1])));
+    node.m = node.n - sq(node.k[node.index]);
+    node.c = 1;
+    node.o = read_lux(Vnoise);
+    node.L = lumi_desire;
+  
+  
+    for(int h=0; h<200; h++){
+      primal_solve(node);// return the cost and dn[2]
+      node.d[0] = dn[0];
+      node.d[1] = dn[1];
+      
+      //each node needs to send d
+      if (node.d[0] < 10){
+          dtostrf(node.d[0],4,2,char_d0);
+      }else if (node.d[0] >= 10 && node.d[0]<100){
+          dtostrf(node.d[0],5,2,char_d0);
+      }else if (node.d[0] >= 100){
+          dtostrf(node.d[0],6,2,char_d0);
+      }
+      if (node.d[1] < 10){
+          dtostrf(node.d[1],4,2,char_d1);
+      }else if (node.d[1] >= 10 && node.d[1]<100){
+          dtostrf(node.d[1],5,2,char_d1);
+      }else if (node.d[1] >= 100){
+          dtostrf(node.d[1],6,2,char_d1);
+      }
+      
+      //send a message with the updated data
+      sprintf(str_send, "%s%d%s_%s", SEND_RESULT, my_address, char_d0, char_d1);
+      Wire.beginTransmission(bus_add);
+      Wire.write(str_send);
+      Wire.endTransmission();
+        
+      while(!flag_consensus){}//waiting for the response
+      flag_consensus = false;
+      
+      //Compute average with available data
+      node.d_av[0] = (node.d[0] + d_neigh[0])/2;
+      node.d_av[1] = (node.d[1] + d_neigh[1])/2;
+  
+      //Update local lagrangians
+      node.y[0]  = node.y[0] + rho*(node.d[0]-node.d_av[0]);
+      node.y[1]  = node.y[1] + rho*(node.d[1]-node.d_av[1]);
+  
+  
+    }
+  
+    lu = node.k[0]*node.d_av[0] + node.k[1]*node.d_av[1] + node.o; 
+  }
+  
+  
+  /**************************************************************************
+  
+        Function:
+  
+        Arguments:
+        Return value:
+  
+        Description: )
+  
+  **************************************************************************/
+  void consensus_class::primal_solve(node_class node){
+    float d_best[2] = {-1.0, -1.0};
+    float  cost_best = 1000000;
+  
+    int sol_unconstrained = 1;
+    int sol_boundary_linear = 1;
+    int sol_boundary_0 = 1;
+    int sol_boundary_100 = 1;
+    int sol_linear_0 = 1;
+    int sol_linear_100 = 1;
+  
+    float cost_unconstrained = 0;
+    float cost_boundary_linear = 0;
+    float cost_boundary_0 = 0;
+    float cost_boundary_100 = 0;
+    float cost_linear_0 = 0;
+    float cost_linear_100 = 0;
+  
+    float z[2];
+    z[0]= rho*node.d_av[0] - node.y[0];
+    z[1]= rho*node.d_av[1] - node.y[1];
+    z[node.index] = z[node.index] - node.c;
+  
+    float d[2];
+    float d_u[2];
+    d_u[0]= (1/rho)*z[0];
+    d_u[1]= (1/rho)*z[1];
+  
+    //unconstrained minimum
+    sol_unconstrained = check_feasibility(node, d_u);
+    if(sol_unconstrained == 1){
+      cost_unconstrained = evaluate_cost(node, d_u);
+      if (cost_unconstrained < cost_best){
+        dn[0] = d_u[0];
+        dn[1] = d_u[1];
+        cost = cost_unconstrained;
+        return;
+      }
+    }
+  
+    //compute minimum constrained to linear boundary
+    float d_bl[2];
+    float p1[2], p2[2], p22, p23;
+  
+    p1[0] = ((1/rho)*z[0]);
+    p1[1] = ((1/rho)*z[1]);
+  
+    p23 = (p1[0]*node.k[0])+(p1[1]*node.k[1]);
+    p22 = node.o-node.L +  p23;
+    p2[0] = node.k[0]/node.n * p22;
+    p2[1] = node.k[1]/node.n * p22;
+  
+    d_bl[0] = p1[0]-p2[0];
+    d_bl[1] = p1[1]-p2[1];
+  
+    //check feasibility of minimum constrained to linear boundary
+    sol_boundary_linear = check_feasibility(node, d_bl);
+    //compute cost and if best store new optimum
+    if(sol_boundary_linear == 1){
+      cost_boundary_linear = evaluate_cost(node, d_bl);
+      if(cost_boundary_linear < cost_best){
+        d_best[0] = d_bl[0];
+        d_best[1] = d_bl[1];
+        cost_best = cost_boundary_linear;
+      }
+    }
+  
+    //compute minimum constrained to 0 boundary
+    float d_b0[2];
+    d_b0[0] = (1/rho)*z[0];
+    d_b0[1] = (1/rho)*z[1];
+    d_b0[node.index] = 0;
+    //check feasibility of minimum constrained to 0 boundary
+    sol_boundary_0 = check_feasibility(node, d_b0);
+    //compute cost and if best store new optimum
+    if(sol_boundary_0 == 1){
+      cost_boundary_0 = evaluate_cost(node, d_b0);
+      if(cost_boundary_0 < cost_best){
+        d_best[0] = d_b0[0];
+        d_best[1] = d_b0[1];
+        cost_best = cost_boundary_0;
+      }
+    }
+  
+    //compute minimum constrained to 100 boundary
+    float d_b1[2];
+    d_b1[0] = (1/rho)*z[0];
+    d_b1[1] = (1/rho)*z[1];
+    d_b1[node.index] = 100;
+    //check feasibility of minimum constrained to 100 boundary
+    sol_boundary_100 = check_feasibility(node, d_b1);
+    //compute cost and if best store new optimum
+    if(sol_boundary_100 == 1){
+      cost_boundary_100 = evaluate_cost(node, d_b1);
+      if(cost_boundary_100 < cost_best){
+        d_best[0] = d_b1[0];
+        d_best[1] = d_b1[1];
+        cost_best = cost_boundary_100;
+      }
+    }
+  
+    //compute minimum constrained to linear and 0 boundary
+    float d_l0[2];
+    float a1[2], a2[2], a3[2], a31, a32;
+  
+    a1[0] = ((1/rho)*z[0]);
+    a1[1] = ((1/rho)*z[1]);
+  
+    a2[0] = (1/node.m)*node.k[0]*(node.o-node.L);
+    a2[1] = (1/node.m)*node.k[1]*(node.o-node.L);
+  
+    a32 = z[0]*node.k[0] + z[1]*node.k[1];
+    a31 = node.k[node.index]*z[node.index]- a32;
+  
+    a3[0] = (1/rho/node.m)*node.k[0]* a31;
+    a3[1] = (1/rho/node.m)*node.k[1]* a31;
+  
+    d_l0[0] = a1[0]-a2[0]+a3[0];
+    d_l0[1] = a1[1]-a2[1]+a3[1];
+  
+    d_l0[node.index] = 0;
+  
+    //check feasibility of minimum constrained to linear and 0 boundary
+    sol_linear_0 = check_feasibility(node, d_l0);
+    if(sol_linear_0 == 1){
+      cost_linear_0 = evaluate_cost(node, d_l0);
+      if(cost_linear_0 < cost_best){
+        d_best[0] = d_l0[0];
+        d_best[1] = d_l0[1];
+        cost_best = cost_linear_0;
+      }
+    }
+  
+    //compute minimum constrained to linear and 100 boundary
+    float d_l1[2];
+    //a1[0] = ((1/rho)*z[0]);
+    //a1[1] = ((1/rho)*z[1]);
+  
+    a2[0] = (1/node.m)*node.k[0]*(node.o-node.L+100*node.k[node.index]);
+    a2[1] = (1/node.m)*node.k[1]*(node.o-node.L+100*node.k[node.index]);
+  
+    //a32 = z[0]*node.k[0] + z[1]*node.k[1];
+    //a31 = node.k[node.index]*z[node.index]- a32;
+  
+    //a3[0] = (1/rho/node.m)*node.k[0]* a31;
+    //a3[1] = (1/rho/node.m)*node.k[1]* a31;
+  
+    d_l1[0] = a1[0]-a2[0]+a3[0];
+    d_l1[1] = a1[1]-a2[1]+a3[1];
+  
+    d_l1[node.index] = 100;
+  
+    //check feasibility of minimum constrained to linear and 100 boundary
+    sol_linear_100 = check_feasibility(node, d_l1);
+    if(sol_linear_100 == 1){
+      cost_linear_100 = evaluate_cost(node, d_l1);
+      if(cost_linear_100 < cost_best){
+        d_best[0] = d_l1[0];
+        d_best[1] = d_l1[1];
+        cost_best = cost_linear_100;
+      }
+    }
+  
+    dn[0] = d_best[0];
+    dn[1] = d_best[1];
+    cost = cost_best;
+    return;
+  }
+  
+  
+  /**************************************************************************
+  
+        Function:
+  
+        Arguments:
+        Return value:
+  
+        Description: )
+  
+  **************************************************************************/
+  int consensus_class::check_feasibility(node_class no, float dr[2]){
+  
+    float tol = 0.001;
+    float diff;
+    float aux;
+  
+    if(dr[no.index] < -tol){
+      return 0;
+    }else if(dr[no.index] > 100+tol ){
+      return 0;
+    }
+  
+    aux =  dr[0] * no.k[0] + dr[1] * no.k[1];;
+    diff =  no.L - no.o - tol;
+    if (aux < diff) {
+      return 0;
+    }
+  
+    return 1;
+  }
+  
+  
+  /**************************************************************************
+  
+        Function:
+  
+        Arguments:
+        Return value:
+  
+        Description: 
+  
+  **************************************************************************/
+  float consensus_class::evaluate_cost(node_class no, float dr[2]){
+    float co;
+    float part1, part2, part3, part4;
+    float aux_dif[2];
+  
+    aux_dif[0] = dr[0]-no.d_av[0];
+    aux_dif[1] = dr[1]-no.d_av[1];
+  
+  
+    part1 = no.c*dr[no.index];
+    part2 = no.y[0] * aux_dif[0] + no.y[1] * aux_dif[1];
+    part3 = (rho/2)*(sq(aux_dif[0]) + sq(aux_dif[1]));
+  
+    co = part1 + part2 + part3;
+    return co;
+  }
+
+/*****************************END_OF_CLASS***********************************/
+
+
+
+
+
 
 /**************************************************************************
 
@@ -425,6 +767,7 @@ DONE_READ             inform calibration is finish
 All messages are broadcast in the bus to all the nodes.
 
 **************************************************************************/
+
 
 
 /**************************************************************************
@@ -471,7 +814,7 @@ void receive_msg(int numBytes){
   }else if(strcmp(type_msg, DONE_READ) == 0){
      endcali = true;
      
-  }else if(strcmp(type_msg, SEND_RESULT) == 0){   
+  }else if(strcmp(type_msg, SEND_RESULT) == 0){
     j = 4;
     c = 0;
 
@@ -480,9 +823,9 @@ void receive_msg(int numBytes){
       j ++;
       c ++;
     }
-    num_d1_msg[c] = '\0';
+    num_d1_msg[c] = '\0';    
     d_neigh[0] = atof(num_d1_msg);
-  
+
     j ++;
     c = 0;
  
@@ -494,330 +837,12 @@ void receive_msg(int numBytes){
     num_d2_msg[c] = '\0'; 
     d_neigh[1] = atof(num_d2_msg);
     
-    flag_consensus = true; 
+    flag_consensus = true;
   }
 
 }
 
 /*****************************END_OF_PROTOCOL*******************************/
-
-
-
-
-/**************************************************************************
-
-      Function:
-
-      Arguments:
-      Return value:
-
-      Description: )
-
-**************************************************************************/
-void concensus(float lumi_desire){
-
-  char str_send[30];
-  char char_d0[10], char_d1[10];
-  
-  node.index = my_address-1;
-  node.d[0] = 0.0;
-  node.d[1] = 0.0;
-  node.d_av[0] = 0.0;
-  node.d_av[1] = 0.0;
-  node.y[0] = 0.0;
-  node.y[1] = 0.0;  
-  node.k[0] = gain[0];
-  node.k[1] = gain[1];
-  node.n = sq(node.k[0]) + sq(node.k[1]);//sq(sqrt(sq(node.k[0]) + sq(node.k[1])));
-  node.m = node.n - sq(node.k[node.index]);
-  node.c = 1;
-  node.o = read_lux(Vnoise);
-  node.L = lumi_desire;
-
-
-  for(int h=0; h<200; h++){
-    primal_solve();// return the cost and dn[2]
-    node.d[0] = dn[0];
-    node.d[1] = dn[1];
-  
-    //each node needs to send d
-    if (node.d[0] < 10){
-        dtostrf(node.d[0],4,2,char_d0);
-    }else if (node.d[0] >= 10 && node.d[0]<100){
-        dtostrf(node.d[0],5,2,char_d0);
-    }else if (node.d[0] >= 100){
-        dtostrf(node.d[0],6,2,char_d0);
-    }
-    if (node.d[1] < 10){
-        dtostrf(node.d[1],4,2,char_d1);
-    }else if (node.d[1] >= 10 && node.d[1]<100){
-        dtostrf(node.d[1],5,2,char_d1);
-    }else if (node.d[1] >= 100){
-        dtostrf(node.d[1],6,2,char_d1);
-    }
-
-    //send a message with the updated data
-    sprintf(str_send, "%s%d%s_%s", SEND_RESULT, my_address, char_d0, char_d1);
-    Wire.beginTransmission(bus_add);
-    Wire.write(str_send);
-    Wire.endTransmission();
-    
-    while(!flag_consensus){}//waiting for the response
-    flag_consensus = false;
-    
-    //Compute average with available data
-    node.d_av[0] = (node.d[0] + d_neigh[0])/2;
-    node.d_av[1] = (node.d[1] + d_neigh[1])/2;
-
-    //Update local lagrangians
-    node.y[0]  = node.y[0] + rho*(node.d[0]-node.d_av[0]);
-    node.y[1]  = node.y[1] + rho*(node.d[1]-node.d_av[1]);
-
-  }
-
-  lu = node.k[0]*node.d_av[0] + node.k[1]*node.d_av[1] + node.o;
-}
-
-
-
-/**************************************************************************
-
-      Function:
-
-      Arguments:
-      Return value:
-
-      Description: )
-
-**************************************************************************/
-void primal_solve(){
-  float d_best[2] = {-1.0, -1.0};
-  float  cost_best = 1000000;
-
-  int sol_unconstrained = 1;
-  int sol_boundary_linear = 1;
-  int sol_boundary_0 = 1;
-  int sol_boundary_100 = 1;
-  int sol_linear_0 = 1;
-  int sol_linear_100 = 1;
-
-  float cost_unconstrained = 0;
-  float cost_boundary_linear = 0;
-  float cost_boundary_0 = 0;
-  float cost_boundary_100 = 0;
-  float cost_linear_0 = 0;
-  float cost_linear_100 = 0;
-
-  float z[2];
-  z[0]= rho*node.d_av[0] - node.y[0];
-  z[1]= rho*node.d_av[1] - node.y[1];
-  z[node.index] = z[node.index] - node.c;
-
-  float d[2];
-  float d_u[2];
-  d_u[0]= (1/rho)*z[0];
-  d_u[1]= (1/rho)*z[1];
-
-  //unconstrained minimum
-  sol_unconstrained = check_feasibility(node, d_u);
-  if(sol_unconstrained == 1){
-    cost_unconstrained = evaluate_cost(node, d_u);
-    if (cost_unconstrained < cost_best){
-      dn[0] = d_u[0];
-      dn[1] = d_u[1];
-      cost = cost_unconstrained;
-      return;
-    }
-  }
-
-  //compute minimum constrained to linear boundary
-  float d_bl[2];
-  float p1[2], p2[2], p22, p23;
-
-  p1[0] = ((1/rho)*z[0]);
-  p1[1] = ((1/rho)*z[1]);
-
-  p23 = (p1[0]*node.k[0])+(p1[1]*node.k[1]);
-  p22 = node.o-node.L +  p23;
-  p2[0] = node.k[0]/node.n * p22;
-  p2[1] = node.k[1]/node.n * p22;
-
-  d_bl[0] = p1[0]-p2[0];
-  d_bl[1] = p1[1]-p2[1];
-
-  //check feasibility of minimum constrained to linear boundary
-  sol_boundary_linear = check_feasibility(node, d_bl);
-  //compute cost and if best store new optimum
-  if(sol_boundary_linear == 1){
-    cost_boundary_linear = evaluate_cost(node, d_bl);
-    if(cost_boundary_linear < cost_best){
-      d_best[0] = d_bl[0];
-      d_best[1] = d_bl[1];
-      cost_best = cost_boundary_linear;
-    }
-  }
-
-  //compute minimum constrained to 0 boundary
-  float d_b0[2];
-  d_b0[0] = (1/rho)*z[0];
-  d_b0[1] = (1/rho)*z[1];
-  d_b0[node.index] = 0;
-  //check feasibility of minimum constrained to 0 boundary
-  sol_boundary_0 = check_feasibility(node, d_b0);
-  //compute cost and if best store new optimum
-  if(sol_boundary_0 == 1){
-    cost_boundary_0 = evaluate_cost(node, d_b0);
-    if(cost_boundary_0 < cost_best){
-      d_best[0] = d_b0[0];
-      d_best[1] = d_b0[1];
-      cost_best = cost_boundary_0;
-    }
-  }
-
-  //compute minimum constrained to 100 boundary
-  float d_b1[2];
-  d_b1[0] = (1/rho)*z[0];
-  d_b1[1] = (1/rho)*z[1];
-  d_b1[node.index] = 100;
-  //check feasibility of minimum constrained to 100 boundary
-  sol_boundary_100 = check_feasibility(node, d_b1);
-  //compute cost and if best store new optimum
-  if(sol_boundary_100 == 1){
-    cost_boundary_100 = evaluate_cost(node, d_b1);
-    if(cost_boundary_100 < cost_best){
-      d_best[0] = d_b1[0];
-      d_best[1] = d_b1[1];
-      cost_best = cost_boundary_100;
-    }
-  }
-
-  //compute minimum constrained to linear and 0 boundary
-  float d_l0[2];
-  float a1[2], a2[2], a3[2], a31, a32;
-
-  a1[0] = ((1/rho)*z[0]);
-  a1[1] = ((1/rho)*z[1]);
-
-  a2[0] = (1/node.m)*node.k[0]*(node.o-node.L);
-  a2[1] = (1/node.m)*node.k[1]*(node.o-node.L);
-
-  a32 = z[0]*node.k[0] + z[1]*node.k[1];
-  a31 = node.k[node.index]*z[node.index]- a32;
-
-  a3[0] = (1/rho/node.m)*node.k[0]* a31;
-  a3[1] = (1/rho/node.m)*node.k[1]* a31;
-
-  d_l0[0] = a1[0]-a2[0]+a3[0];
-  d_l0[1] = a1[1]-a2[1]+a3[1];
-
-  d_l0[node.index] = 0;
-
-  //check feasibility of minimum constrained to linear and 0 boundary
-  sol_linear_0 = check_feasibility(node, d_l0);
-  if(sol_linear_0 == 1){
-    cost_linear_0 = evaluate_cost(node, d_l0);
-    if(cost_linear_0 < cost_best){
-      d_best[0] = d_l0[0];
-      d_best[1] = d_l0[1];
-      cost_best = cost_linear_0;
-    }
-  }
-
-  //compute minimum constrained to linear and 100 boundary
-  float d_l1[2];
-  //a1[0] = ((1/rho)*z[0]);
-  //a1[1] = ((1/rho)*z[1]);
-
-  a2[0] = (1/node.m)*node.k[0]*(node.o-node.L+100*node.k[node.index]);
-  a2[1] = (1/node.m)*node.k[1]*(node.o-node.L+100*node.k[node.index]);
-
-  //a32 = z[0]*node.k[0] + z[1]*node.k[1];
-  //a31 = node.k[node.index]*z[node.index]- a32;
-
-  //a3[0] = (1/rho/node.m)*node.k[0]* a31;
-  //a3[1] = (1/rho/node.m)*node.k[1]* a31;
-
-  d_l1[0] = a1[0]-a2[0]+a3[0];
-  d_l1[1] = a1[1]-a2[1]+a3[1];
-
-  d_l1[node.index] = 100;
-
-  //check feasibility of minimum constrained to linear and 100 boundary
-  sol_linear_100 = check_feasibility(node, d_l1);
-  if(sol_linear_100 == 1){
-    cost_linear_100 = evaluate_cost(node, d_l1);
-    if(cost_linear_100 < cost_best){
-      d_best[0] = d_l1[0];
-      d_best[1] = d_l1[1];
-      cost_best = cost_linear_100;
-    }
-  }
-
-  dn[0] = d_best[0];
-  dn[1] = d_best[1];
-  cost = cost_best;
-  return;
-}
-
-
-/**************************************************************************
-
-      Function:
-
-      Arguments:
-      Return value:
-
-      Description: )
-
-**************************************************************************/
-int check_feasibility(node_class no, float dr[2]){
-
-  float tol = 0.001;
-  float diff;
-  float aux;
-
-  if(dr[no.index] < -tol){
-    return 0;
-  }else if(dr[no.index] > 100+tol ){
-    return 0;
-  }
-
-  aux =  dr[0] * no.k[0] + dr[1] * no.k[1];;
-  diff =  no.L - no.o - tol;
-  if (aux < diff) {
-    return 0;
-  }
-
-  return 1;
-}
-
-
-/**************************************************************************
-
-      Function:
-
-      Arguments:
-      Return value:
-
-      Description: )
-
-**************************************************************************/
-float evaluate_cost(node_class no, float dr[2]){
-  float co;
-  float part1, part2, part3, part4;
-  float aux_dif[2];
-
-  aux_dif[0] = dr[0]-no.d_av[0];
-  aux_dif[1] = dr[1]-no.d_av[1];
-
-
-  part1 = no.c*dr[no.index];
-  part2 = no.y[0] * aux_dif[0] + no.y[1] * aux_dif[1];
-  part3 = (rho/2)*(sq(aux_dif[0]) + sq(aux_dif[1]));//sqrt(sq(aux_dif[0]) + sq(aux_dif[1]))^2;
-
-  co = part1 + part2 + part3;
-  return co;
-}
 
 
 
