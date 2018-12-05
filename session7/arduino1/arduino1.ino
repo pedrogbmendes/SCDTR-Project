@@ -77,7 +77,6 @@ float rho = 0.07;
 float cost = 0;
 float d_neigh[2] = {0,0};
 volatile bool flag_consensus = false;
-float lu = 0.0;
 int d_con[2] = {0,0};
 
 
@@ -107,8 +106,8 @@ int u_des;  //pwm signal desire to apply on led
 float gain[2]; //static gain for each led
 
 //Calibration of LDR
-float m;
-float b;
+float m=-0.6403;
+float b=4.9;
 
 //PI variables
 float y_ant = 0, i_ant = 0, e_ant = 0, u_ant = 0; //previous values
@@ -205,10 +204,10 @@ void setup() {
   my_address = EEPROM.read(0);
 
   //write the LDR calibration parameters in the eeprom
-  EEPROM.write(1, -0.6403);
-  b = EEPROM.read(1);  
+  /*EEPROM.write(1, -0.6403);
+  m = EEPROM.read(1);  
   EEPROM.write(2, 4.9);
-  m = EEPROM.read(2);
+  b = EEPROM.read(2);*/
 
   Wire.begin(my_address);
   Wire.onReceive(receive_msg);
@@ -223,8 +222,8 @@ void setup() {
   
   delay(1000);
   
-  algoritm_consensus.concensus(50.0);
-  Serial.println(lu);
+  algoritm_consensus.concensus(20.0);
+  Serial.println(lux_des);
   
   v_i = 0;
   t_init = micros();
@@ -461,16 +460,18 @@ ISR(TIMER1_COMPA_vect){
     node.d_av[1] = 0.0;
     node.y[0] = 0.0;
     node.y[1] = 0.0;  
-    node.k[0] = (gain[0]*100.0)/255;
-    node.k[1] = (gain[1]*100.0)/255;
-    node.n = sq(node.k[0]) + sq(node.k[1]);//sq(sqrt(sq(node.k[0]) + sq(node.k[1])));
+    //node.k[0] = gain[0];
+    //node.k[1] = gain[1];
+    node.k[0] = (gain[0]*255.0)/100;
+    node.k[1] = (gain[1]*255.0)/100;
+    node.n = sq(node.k[0]) + sq(node.k[1]);
     node.m = node.n - sq(node.k[node.index]);
     node.c = 1;
     node.o = read_lux(Vnoise);
     node.L = lumi_desire;
   
   
-    for(int h=0; h<200; h++){
+    for(int h=0; h<50; h++){
       primal_solve(node);// return the cost and dn[2]
       node.d[0] = dn[0];
       node.d[1] = dn[1];
@@ -1255,7 +1256,7 @@ void new_consensus_result(){
 
 **************************************************************************/
 void loop() {
-  
+  /*
   verify_toggle();
 
   if (toggle) {
@@ -1268,8 +1269,8 @@ void loop() {
       ill_des = 50;
       dz = 1;
       toggle_ant = HIGH;
-      algoritm_consensus.concensus(ill_des);
-      new_consensus_result();
+      //algoritm_consensus.concensus(ill_des);
+      //new_consensus_result();
     }
 
     acquire_samples();
@@ -1284,8 +1285,8 @@ void loop() {
       ill_des = 20;
       dz = 0.7;
       toggle_ant = LOW;
-      algoritm_consensus.concensus(ill_des);
-      new_consensus_result();
+      //algoritm_consensus.concensus(ill_des);
+      //new_consensus_result();
     }
 
     acquire_samples();
@@ -1293,6 +1294,6 @@ void loop() {
   }
 
   //print_results();
-
+*/
 
 }
