@@ -666,9 +666,12 @@ void loop()
 {
   //define varibles
 float rate;
- analogWrite(ledPin, 255);
- delay(1000);
+ //analogWrite(ledPin, 255);
+ //delay(1000);
 
+rate = analogRead(sensorPin);
+ Serial.println(rate);
+    
   t_init = micros();
   
   //verify_toggle(); 

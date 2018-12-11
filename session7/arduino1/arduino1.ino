@@ -107,8 +107,8 @@ int u_des;  //pwm signal desire to apply on led
 float gain[2]; //static gain for each led
 
 //Calibration of LDR
-float m;
-float b;
+float m = -0.6443;
+float b = 4.75;
 
 //PI variables
 float y_ant = 0, i_ant = 0, e_ant = 0, u_ant = 0; //previous values
@@ -205,10 +205,10 @@ void setup() {
   my_address = EEPROM.read(0);
 
   //write the LDR calibration parameters in the eeprom
-  EEPROM.write(1, -0.6403);
+  /*EEPROM.write(1, -0.6403);
   b = EEPROM.read(1);  
   EEPROM.write(2, 4.9);
-  m = EEPROM.read(2);
+  m = EEPROM.read(2);*/
 
   Wire.begin(my_address);
   Wire.onReceive(receive_msg);
