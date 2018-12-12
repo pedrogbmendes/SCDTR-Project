@@ -38,6 +38,7 @@
 #define READ_YOUR_LED "RYL"
 #define CONF_READ_YOUR_LED "CYL"
 #define DONE_READ "DR_"
+#define TURN_ON_CONSENSUS "TC_"
 
 //consensus messages type
 #define SEND_RESULT "SRD"
@@ -69,8 +70,10 @@ volatile bool endcali = false;
 volatile bool read_led = false;
 volatile bool end_read = false;
 volatile bool flag_turnON = false;
+volatile bool flag_turn_consensus = false;
 int orig_addr = 0;
 
+int rate;
 //consensus
 float dn[2];
 float rho = 0.07;
@@ -107,8 +110,8 @@ int u_des;  //pwm signal desire to apply on led
 float gain[2]; //static gain for each led
 
 //Calibration of LDR
-float m = -0.705;
-float b = 4.8155;
+float m = -0.62;
+float b = 4.8;
 
 //PI variables
 float y_ant = 0, i_ant = 0, e_ant = 0, u_ant = 0; //previous values
@@ -181,10 +184,17 @@ class consensus_class{
     
   };
 
-
+  class controller{
+  
+    public:
+      void control_interrupt();
+    private:
+      int feedback_control();
+  };
 
 INIT_cali calib;
 consensus_class algoritm_consensus;
+controller control;
 
 
 
@@ -198,7 +208,7 @@ void setup() {
   pinMode(ledPin, OUTPUT); // enable output on the led pin
   pinMode(switchPin, INPUT_PULLUP);
 
-  Serial.begin(115200);
+  Serial.begin(2000000);
 
   //write the address in the eeprom
   EEPROM.write(0, address);
@@ -232,7 +242,7 @@ void setup() {
   t_change = t_init;
   t1 = t_init;
   //Enable interruption
-  //sei();
+  sei();
 
 }
 
@@ -287,7 +297,7 @@ void set_frequency(){
 
 **************************************************************************/
 ISR(TIMER1_COMPA_vect){
-   control_interrupt();
+   control.control_interrupt();
 }
 
 
@@ -451,7 +461,7 @@ ISR(TIMER1_COMPA_vect){
         Description: )
   
   **************************************************************************/
-  void consensus_class::concensus(float lumi_desire){
+void consensus_class::concensus(float lumi_desire){
   
     char str_send[30];
     char char_d0[10], char_d1[10];
@@ -464,9 +474,11 @@ ISR(TIMER1_COMPA_vect){
     node.d_av[1] = 0.0;
     node.y[0] = 0.0;
     node.y[1] = 0.0;  
+    //node.k[0] = gain[0];
+    //node.k[1] = gain[1];
     node.k[0] = (gain[0]*255.0)/100;
-    node.k[1] = (gain[1]*100.0)/255;
-    node.n = sq(node.k[0]) + sq(node.k[1]);//sq(sqrt(sq(node.k[0]) + sq(node.k[1])));
+    node.k[1] = (gain[1]*255.0)/100;
+    node.n = sq(node.k[0]) + sq(node.k[1]);
     node.m = node.n - sq(node.k[node.index]);
     node.c = 1;
     node.o = read_lux(Vnoise);
@@ -479,6 +491,10 @@ ISR(TIMER1_COMPA_vect){
       node.d[1] = dn[1];
       
       //each node needs to send d
+
+      while(!flag_consensus){}//waiting for the response
+      flag_consensus = false;
+      
       if (node.d[0] < 10){
           dtostrf(node.d[0],4,2,char_d0);
       }else if (node.d[0] >= 10 && node.d[0]<100){
@@ -493,15 +509,14 @@ ISR(TIMER1_COMPA_vect){
       }else if (node.d[1] >= 100){
           dtostrf(node.d[1],6,2,char_d1);
       }
-      
+
       //send a message with the updated data
       sprintf(str_send, "%s%d%s_%s", SEND_RESULT, my_address, char_d0, char_d1);
       Wire.beginTransmission(bus_add);
       Wire.write(str_send);
       Wire.endTransmission();
         
-      while(!flag_consensus){}//waiting for the response
-      flag_consensus = false;
+      
       
       //Compute average with available data
       node.d_av[0] = (node.d[0] + d_neigh[0])/2;
@@ -568,6 +583,10 @@ ISR(TIMER1_COMPA_vect){
       if (cost_unconstrained < cost_best){
         dn[0] = d_u[0];
         dn[1] = d_u[1];
+        
+        if (dn[1] > 100) {
+          dn[1] = 100;
+        }
         cost = cost_unconstrained;
         return;
       }
@@ -698,6 +717,14 @@ ISR(TIMER1_COMPA_vect){
   
     dn[0] = d_best[0];
     dn[1] = d_best[1];
+
+    if (dn[0] > 100) {
+      dn[0] = 100;
+    }
+    if (dn[1] > 100) {
+      dn[1] = 100;
+    }
+    
     cost = cost_best;
     return;
   }
@@ -817,7 +844,7 @@ void receive_msg(int numBytes){
   }
   type_msg[3] = '\0';
   orig_addr = msg_recv[3] - '0';//converto to int
-  Serial.println(msg_recv);
+  //Serial.println(msg_recv);
 
   if(strcmp(type_msg, READ_MY_LED) == 0){
       read_led = true;
@@ -855,6 +882,8 @@ void receive_msg(int numBytes){
     d_neigh[1] = atof(num_d2_msg);
     
     flag_consensus = true;
+  } else if(strcmp(type_msg, TURN_ON_CONSENSUS) == 0) {
+    flag_turn_consensus = true;
   }
 
 }
@@ -1133,7 +1162,7 @@ void change_led(int u){
   error
 
 **************************************************************************/
-int feedback_control(){
+int controller::feedback_control(){
   float kp = 0.07, ki = 350;
   float k2, u;
   float T = .01;
@@ -1191,7 +1220,7 @@ int feedback_control(){
   control  value (pwm) to apply to the led.
 
 **************************************************************************/
-void control_interrupt(){
+void controller::control_interrupt(){
 
   t2 = t1;
   t1 = micros();
@@ -1263,7 +1292,13 @@ void new_consensus_result(){
 void loop() {
   
   verify_toggle();
-
+ 
+  
+  if (flag_turn_consensus) {
+    algoritm_consensus.concensus(ill_des);
+    flag_turn_consensus = false;
+  }
+  
   if (toggle) {
     //toggle is HIGH
 
@@ -1274,6 +1309,12 @@ void loop() {
       ill_des = 50;
       dz = 1;
       toggle_ant = HIGH;
+      
+      //sprintf(str_send, "%s", TURN_ON_CONSENSUS);
+      Wire.beginTransmission(bus_add);
+      Wire.write(TURN_ON_CONSENSUS);
+      Wire.endTransmission();
+      
       algoritm_consensus.concensus(ill_des);
       //new_consensus_result(true);
     }
@@ -1290,6 +1331,12 @@ void loop() {
       ill_des = 20;
       dz = 0.7;
       toggle_ant = LOW;
+
+      //sprintf(str_send, "%s", TURN_ON_CONSENSUS);
+      Wire.beginTransmission(bus_add);
+      Wire.write(TURN_ON_CONSENSUS);
+      Wire.endTransmission();
+      
       algoritm_consensus.concensus(ill_des);
       //new_consensus_result(true);
     }
@@ -1298,6 +1345,12 @@ void loop() {
     change_led(u_des);
   }
 
+  rate = analogRead(sensorPin);
+  Serial.print(read_lux(rate));
+  Serial.print(" ");
+  Serial.print(ill_des);
+  Serial.print("\n");
+  
   //print_results();
 
 

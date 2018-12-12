@@ -38,6 +38,7 @@
 #define READ_YOUR_LED "RYL"
 #define CONF_READ_YOUR_LED "CYL"
 #define DONE_READ "DR_"
+#define TURN_ON_CONSENSUS "TC_"
 
 //consensus messages type
 #define SEND_RESULT "SRD"
@@ -69,7 +70,10 @@ volatile bool endcali = false;
 volatile bool read_led = false;
 volatile bool end_read = false;
 volatile bool flag_turnON = false;
+volatile bool flag_turn_consensus = false;
 int orig_addr = 0;
+
+int rate;
 
 //consensus
 float dn[2];
@@ -106,8 +110,8 @@ int u_des;  //pwm signal desire to apply on led
 float gain[2]; //static gain for each led
 
 //Calibration of LDR
-float m=-0.6403;
-float b=4.9;
+float m=-0.62;
+float b=4.8;
 
 //PI variables
 float y_ant = 0, i_ant = 0, e_ant = 0, u_ant = 0; //previous values
@@ -180,10 +184,17 @@ class consensus_class{
     
   };
 
+class controller{
 
+  public:
+    void control_interrupt();
+  private:
+    int feedback_control();
+};
 
 INIT_cali calib;
 consensus_class algoritm_consensus;
+controller control;
 
 
 
@@ -197,7 +208,7 @@ void setup() {
   pinMode(ledPin, OUTPUT); // enable output on the led pin
   pinMode(switchPin, INPUT_PULLUP);
 
-  Serial.begin(115200);
+  Serial.begin(2000000);
 
   //write the address in the eeprom
   EEPROM.write(0, address);
@@ -230,7 +241,7 @@ void setup() {
   t_change = t_init;
   t1 = t_init;
   //Enable interruption
-  //sei();
+  sei();
 
 }
 
@@ -285,7 +296,7 @@ void set_frequency(){
 
 **************************************************************************/
 ISR(TIMER1_COMPA_vect){
-   control_interrupt();
+   control.control_interrupt();
 }
 
 
@@ -473,6 +484,7 @@ ISR(TIMER1_COMPA_vect){
   
     for(int h=0; h<50; h++){
       primal_solve(node);// return the cost and dn[2]
+      
       node.d[0] = dn[0];
       node.d[1] = dn[1];
       
@@ -491,6 +503,7 @@ ISR(TIMER1_COMPA_vect){
       }else if (node.d[1] >= 100){
           dtostrf(node.d[1],6,2,char_d1);
       }
+
       
       //send a message with the updated data
       sprintf(str_send, "%s%d%s_%s", SEND_RESULT, my_address, char_d0, char_d1);
@@ -558,23 +571,31 @@ ISR(TIMER1_COMPA_vect){
     float d_u[2];
     d_u[0]= (1/rho)*z[0];
     d_u[1]= (1/rho)*z[1];
+
+    
   
     //unconstrained minimum
     sol_unconstrained = check_feasibility(node, d_u);
+    
     if(sol_unconstrained == 1){
       cost_unconstrained = evaluate_cost(node, d_u);
       if (cost_unconstrained < cost_best){
         dn[0] = d_u[0];
         dn[1] = d_u[1];
+        
+        if (dn[1] > 100) {
+          dn[1] = 100;
+        }
         cost = cost_unconstrained;
+        
         return;
       }
     }
-  
+    
     //compute minimum constrained to linear boundary
     float d_bl[2];
     float p1[2], p2[2], p22, p23;
-  
+    
     p1[0] = ((1/rho)*z[0]);
     p1[1] = ((1/rho)*z[1]);
   
@@ -585,7 +606,9 @@ ISR(TIMER1_COMPA_vect){
   
     d_bl[0] = p1[0]-p2[0];
     d_bl[1] = p1[1]-p2[1];
-  
+
+    
+    
     //check feasibility of minimum constrained to linear boundary
     sol_boundary_linear = check_feasibility(node, d_bl);
     //compute cost and if best store new optimum
@@ -614,7 +637,7 @@ ISR(TIMER1_COMPA_vect){
         cost_best = cost_boundary_0;
       }
     }
-  
+    
     //compute minimum constrained to 100 boundary
     float d_b1[2];
     d_b1[0] = (1/rho)*z[0];
@@ -631,14 +654,14 @@ ISR(TIMER1_COMPA_vect){
         cost_best = cost_boundary_100;
       }
     }
-  
+    
     //compute minimum constrained to linear and 0 boundary
     float d_l0[2];
     float a1[2], a2[2], a3[2], a31, a32;
   
     a1[0] = ((1/rho)*z[0]);
     a1[1] = ((1/rho)*z[1]);
-  
+    
     a2[0] = (1/node.m)*node.k[0]*(node.o-node.L);
     a2[1] = (1/node.m)*node.k[1]*(node.o-node.L);
   
@@ -693,9 +716,18 @@ ISR(TIMER1_COMPA_vect){
         cost_best = cost_linear_100;
       }
     }
-  
+
+    
     dn[0] = d_best[0];
     dn[1] = d_best[1];
+
+    if (dn[0] > 100) {
+      dn[0] = 100;
+    }
+    if (dn[1] > 100) {
+      dn[1] = 100;
+    }
+    
     cost = cost_best;
     return;
   }
@@ -814,7 +846,7 @@ void receive_msg(int numBytes){
   }
   type_msg[3] = '\0';
   orig_addr = msg_recv[3] - '0';//converto to int
-  Serial.println(msg_recv);
+  //Serial.println(msg_recv);
 
   if(strcmp(type_msg, READ_MY_LED) == 0){
       read_led = true;
@@ -852,7 +884,10 @@ void receive_msg(int numBytes){
     d_neigh[1] = atof(num_d2_msg);
     
     flag_consensus = true;
+  } else if(strcmp(type_msg, TURN_ON_CONSENSUS) == 0) {
+    flag_turn_consensus = true;
   }
+
 
 }
 
@@ -1128,7 +1163,7 @@ void change_led(int u){
   error
 
 **************************************************************************/
-int feedback_control(){
+int controller::feedback_control(){
   float kp = 0.07, ki = 350;
   float k2, u;
   float T = .01;
@@ -1186,7 +1221,7 @@ int feedback_control(){
   control  value (pwm) to apply to the led.
 
 **************************************************************************/
-void control_interrupt(){
+void controller::control_interrupt(){
 
   t2 = t1;
   t1 = micros();
@@ -1256,9 +1291,14 @@ void new_consensus_result(){
 
 **************************************************************************/
 void loop() {
-  /*
+  
   verify_toggle();
 
+  if (flag_turn_consensus) {
+    algoritm_consensus.concensus(ill_des);
+    flag_turn_consensus = false;
+  }
+  
   if (toggle) {
     //toggle is HIGH
 
@@ -1269,7 +1309,13 @@ void loop() {
       ill_des = 50;
       dz = 1;
       toggle_ant = HIGH;
-      //algoritm_consensus.concensus(ill_des);
+
+      //sprintf(str_send, "%s", TURN_ON_CONSENSUS);
+      Wire.beginTransmission(bus_add);
+      Wire.write(TURN_ON_CONSENSUS);
+      Wire.endTransmission();
+      
+      algoritm_consensus.concensus(ill_des);
       //new_consensus_result();
     }
 
@@ -1285,7 +1331,13 @@ void loop() {
       ill_des = 20;
       dz = 0.7;
       toggle_ant = LOW;
-      //algoritm_consensus.concensus(ill_des);
+
+      //sprintf(str_send, "%s", TURN_ON_CONSENSUS);
+      Wire.beginTransmission(bus_add);
+      Wire.write(TURN_ON_CONSENSUS);
+      Wire.endTransmission();
+      
+      algoritm_consensus.concensus(ill_des);
       //new_consensus_result();
     }
 
@@ -1293,7 +1345,13 @@ void loop() {
     change_led(u_des);
   }
 
+  rate = analogRead(sensorPin);
+  Serial.print(read_lux(rate));
+  Serial.print(" ");
+  Serial.print(ill_des);
+  Serial.print("\n");
+  
   //print_results();
-*/
+
 
 }
