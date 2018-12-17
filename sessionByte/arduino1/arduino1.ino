@@ -145,7 +145,7 @@ String pwm_TW;
 //frequency
 unsigned long t1=0, t2=0;
 
-
+int countsend = 0;
 
 /**************************************************************************
 
@@ -228,9 +228,6 @@ void setup() {
    
   set_frequency();
 
-  
- 
-  
   calib.init_calibration();
 
   Serial.println(gain[0]);
@@ -481,8 +478,6 @@ ISR(TIMER1_COMPA_vect){
     
     for(int h=0; h<50; h++){
 
-      
-      
       primal_solve(node);// return the cost and dn[2]
       
       node.d[0] = dn[0];
@@ -506,7 +501,7 @@ ISR(TIMER1_COMPA_vect){
 
       
       //send a message with the updated data
-      send_msg(SEND_RESULT, my_address, node.d[0], node.d
+      send_msg(SEND_RESULT, my_address, node.d[0], node.d[1]);
       
       while(!flag_consensus){}//waiting for the response
       flag_consensus = false;
@@ -991,7 +986,8 @@ void send_data_to_rasp(const char T){
   byte to_send[14];
   byte lux_obs_send[4], ref_lux_send[4], control_lux_send[4], noise_send[4];
   float ref_lux, meas_lux;
-
+  
+  acquire_samples();
   ref_lux = (float) ill_des;
   meas_lux = (float) lux_obs;
 
@@ -1396,6 +1392,7 @@ void controller::control_interrupt(){
   u_ant = u_des;
 
   flag_send_to_rasp = true;
+  countsend ++;
 }
 
 
@@ -1493,10 +1490,11 @@ void loop() {
     acquire_samples();
     change_led(u_des);
   }
-
-  if (flag_send_to_rasp){
+  Serial.println(countsend);
+  if (/*flag_send_to_rasp &&*/ countsend >100){
     send_data_to_rasp('I');
     flag_send_to_rasp = false;
+    countsend = 0;    
   }
 
   /*rate = analogRead(sensorPin);

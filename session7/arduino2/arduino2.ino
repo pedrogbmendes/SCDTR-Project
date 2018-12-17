@@ -238,7 +238,7 @@ void setup() {
   Serial.println(lux_des);
   
   v_i = 0;
-  t_init = micros();
+  t_init = millis();
   t_change = t_init;
   t1 = t_init;
   //Enable interruption
@@ -930,14 +930,16 @@ void send_data_to_rasp(bool mode){
     }
 
     
-    sprintf(str_send, "%d-%lu:%s,%d,%s", my_address,t_send,meaLux_char,u_des,refLux_char);
-    Wire.beginTransmission(127); //address of the raspberry pi
+    sprintf(str_send, "%d-%lu:%s,%d,%s\0", my_address,t_send,meaLux_char,u_des,refLux_char);
+    Serial.println(str_send);
+    Wire.beginTransmission(0); //address of the raspberry pi
     Wire.write(str_send);
     Wire.endTransmission(); 
   }else{
     //send a message with the new data to the raspberry( don't send ref lux)
-    sprintf(str_send, "%d-%lu:%s,%d", my_address,t_send,meaLux_char, u_des);
-    Wire.beginTransmission(127); //address of the raspberry pi
+    sprintf(str_send, "%d-%lu:%s,%d\0", my_address,t_send,meaLux_char, u_des);
+    Serial.println(str_send);
+    Wire.beginTransmission(0); //address of the raspberry pi
     Wire.write(str_send);
     Wire.endTransmission(); 
 
@@ -1275,7 +1277,7 @@ void acquire_samples(){
 void new_consensus_result(){
   
   acquire_samples();
-  send_data_to_rasp(false);
+  send_data_to_rasp(true);
   
 }
 
@@ -1316,7 +1318,7 @@ void loop() {
       Wire.endTransmission();
       
       algoritm_consensus.concensus(ill_des);
-      //new_consensus_result(true);
+      new_consensus_result();
     }
 
     acquire_samples();
@@ -1338,7 +1340,7 @@ void loop() {
       Wire.endTransmission();
       
       algoritm_consensus.concensus(ill_des);
-      //new_consensus_result(true);
+      new_consensus_result();
     }
 
     acquire_samples();
@@ -1346,10 +1348,10 @@ void loop() {
   }
 
   rate = analogRead(sensorPin);
-  Serial.print(read_lux(rate));
-  Serial.print(" ");
-  Serial.print(ill_des);
-  Serial.print("\n");
+  //Serial.print(read_lux(rate));
+  //Serial.print(" ");
+  //Serial.print(ill_des);
+  //Serial.print("\n");
   
   //print_results();
 

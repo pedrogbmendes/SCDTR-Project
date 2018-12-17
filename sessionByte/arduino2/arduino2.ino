@@ -145,7 +145,7 @@ String pwm_TW;
 //frequency
 unsigned long t1=0, t2=0;
 
-
+int countsend = 0;
 
 /**************************************************************************
 
@@ -228,10 +228,8 @@ void setup() {
   
   calib.init_calibration();
 
-  //Serial.println(gain[0]);
-  //Serial.println(gain[1]);
-
-  delay(1000);
+  Serial.println(gain[0]);
+  Serial.println(gain[1]);
   
   v_i = 0;
   t_init = millis();
@@ -475,16 +473,15 @@ void consensus_class::concensus(float lumi_desire){
   
   
     for(int h=0; h<50; h++){
-
+  
       while(!flag_consensus){}//waiting for the response
       flag_consensus = false;
-      
+
       primal_solve(node);// return the cost and dn[2]
       node.d[0] = dn[0];
       node.d[1] = dn[1];
       
       //each node needs to send d
-
       
       if (node.d[0] < 10){
           dtostrf(node.d[0],4,2,char_d0);
@@ -501,13 +498,10 @@ void consensus_class::concensus(float lumi_desire){
           dtostrf(node.d[1],6,2,char_d1);
       }
 
-      
-      
-      
+          
       //send a message with the updated data
       send_msg(SEND_RESULT, my_address, node.d[0], node.d[1]);
 
-      
       
       //Compute average with available data
       node.d_av[0] = (node.d[0] + d_neigh[0])/2;
@@ -983,6 +977,7 @@ void send_data_to_rasp(const char T){
   byte lux_obs_send[4], ref_lux_send[4], control_lux_send[4], noise_send[4];
   float ref_lux, meas_lux;
 
+  acquire_samples();
   ref_lux = (float) ill_des;
   meas_lux = (float) lux_obs;
 
@@ -1382,6 +1377,7 @@ void controller::control_interrupt(){
   u_ant = u_des;
 
   flag_send_to_rasp = true;
+  countsend ++;
 }
 
 
@@ -1433,7 +1429,7 @@ void loop() {
   
   verify_toggle();
  
-  
+
   if (flag_turn_consensus) {
     algoritm_consensus.concensus(ill_des);
     flag_turn_consensus = false;
@@ -1483,10 +1479,11 @@ void loop() {
     acquire_samples();
     change_led(u_des);
   }
-
-  if (flag_send_to_rasp){
+  Serial.println(countsend);
+  if (/*flag_send_to_rasp &&*/ countsend >=100){
     send_data_to_rasp('I');
     flag_send_to_rasp = false;
+    countsend = 0;
   }
   
   /*rate = analogRead(sensorPin);
