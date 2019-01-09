@@ -295,7 +295,7 @@ double convert_V_lux(float V_r) {
   double i_lux;
 
   //Calibration of LDR
-  float m = -0.62;
+  float m = -0.68;
   float b = 4.8;
 
   R_ldr = (5.0 - V_r) * (R1 / V_r); // resistance of LDR
@@ -319,7 +319,7 @@ double convert_V_lux(float V_r) {
 float convert_lux_R(float i_lux){
 
   //Calibration of LDR
-  float m = -0.62;
+  float m = -0.68;
   float b = 4.8;
 
   return pow(10.0, (m * log10(i_lux) + b));
