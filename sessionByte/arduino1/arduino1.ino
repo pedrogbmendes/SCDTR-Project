@@ -232,9 +232,6 @@ void setup() {
    
   set_frequency();
 
-  
- 
-  
   calib.init_calibration();
 
   Serial.println(gain[0]);
@@ -485,8 +482,6 @@ ISR(TIMER1_COMPA_vect){
     
     for(int h=0; h<50; h++){
 
-      
-      
       primal_solve(node);// return the cost and dn[2]
       
       node.d[0] = dn[0];

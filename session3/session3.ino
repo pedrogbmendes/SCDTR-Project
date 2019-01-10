@@ -145,8 +145,8 @@ double read_lux(int rate)
   double i_lux;
 
   //Calibration of LDR
-  float m = -0.363;
-  float b = log10(20515.0); 
+  float m = -0.3659;
+  float b = 4.308; 
     
   
   V_r = rate/205.205;
@@ -563,12 +563,13 @@ analogWrite(ledPin, 0);
         //25
    for (i=0; i<256; i++){  
       analogWrite(ledPin, i); //steps
+      delay(100);
       rate = analogRead(sensorPin);
       //t[i] = micros()- t_init;
       v_rate = rate/205.205; 
       Serial.println( rate);
       //Serial.println( t[i]);
-      delay(1000);
+      
    }
 
       

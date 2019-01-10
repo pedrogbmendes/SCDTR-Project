@@ -230,10 +230,8 @@ void setup() {
   
   calib.init_calibration();
 
-  //Serial.println(gain[0]);
-  //Serial.println(gain[1]);
-
-  delay(1000);
+  Serial.println(gain[0]);
+  Serial.println(gain[1]);
   
   v_i = 0;
   t_init = millis();
@@ -477,16 +475,15 @@ void consensus_class::concensus(float lumi_desire){
   
   
     for(int h=0; h<50; h++){
-
+  
       while(!flag_consensus){}//waiting for the response
       flag_consensus = false;
-      
+
       primal_solve(node);// return the cost and dn[2]
       node.d[0] = dn[0];
       node.d[1] = dn[1];
       
       //each node needs to send d
-
       
       if (node.d[0] < 10){
           dtostrf(node.d[0],4,2,char_d0);
@@ -503,13 +500,10 @@ void consensus_class::concensus(float lumi_desire){
           dtostrf(node.d[1],6,2,char_d1);
       }
 
-      
-      
-      
+          
       //send a message with the updated data
       send_msg(SEND_RESULT, my_address, node.d[0], node.d[1]);
 
-      
       
       //Compute average with available data
       node.d_av[0] = (node.d[0] + d_neigh[0])/2;
