@@ -22,7 +22,7 @@
      Includes
 
 **************************************************************************/
-#include <Wire.h>
+#include <WSWire.h>
 #include <EEPROM.h>
 
 
@@ -137,7 +137,8 @@ int flag_dv = 0; //(des)activate demonstration/print of tension
 int flag_dl = 1; //(des)activate demonstration/print of luminance
 int flag_dg = 0; //(des)activate demonstration/print of gain
 bool flag_setLed = LOW; //(des)activate demosntration of Led dimming values
-bool flag_send_to_rasp = false;
+volatile bool flag_send_to_rasp = false;
+volatile bool stop_int = true;
 
 int pwm_towrite = 0;
 String pwm_TW;
@@ -145,7 +146,7 @@ String pwm_TW;
 //frequency
 unsigned long t1=0, t2=0;
 
-
+int c = 0;
 
 /**************************************************************************
 
@@ -208,6 +209,7 @@ void setup() {
 
   pinMode(ledPin, OUTPUT); // enable output on the led pin
   pinMode(switchPin, INPUT_PULLUP);
+  pinMode(13, OUTPUT);
 
   Serial.begin(2000000);
 
@@ -525,6 +527,7 @@ void consensus_class::concensus(float lumi_desire){
     u_con = flag_ff * d_con[my_address-1];
     
     lux_des = gain[0]* d_con[0] + gain[1]* d_con[1] + node.o; 
+    Serial.println(lux_des);
    
   }
   
@@ -835,7 +838,7 @@ void receive_msg(int numBytes){
   }
   type_msg[3] = '\0';
   orig_addr = (int) msg_recv[3];//converto to int
-  Serial.println(msg_recv);
+  //Serial.println(msg_recv);
 
   if(strcmp(type_msg, READ_MY_LED) == 0){
       read_led = true;
@@ -888,6 +891,7 @@ void receive_msg(int numBytes){
 void send_msg(const char type[3], int add, float d0, float d1){
   byte to_float[4];
   byte to_send[12];
+  int n;
   
   if (strcmp(type, SEND_RESULT) == 0){
     
@@ -913,7 +917,12 @@ void send_msg(const char type[3], int add, float d0, float d1){
 
     Wire.beginTransmission(bus_add);
     Wire.write(to_send, 12);
-    Wire.endTransmission();
+    digitalWrite(13, LOW);
+      n = Wire.endTransmission();
+      
+      Serial.println(n);
+      digitalWrite(13, HIGH); 
+      delay(1);
     
   } else {
     
@@ -926,7 +935,10 @@ void send_msg(const char type[3], int add, float d0, float d1){
 
     Wire.beginTransmission(bus_add);
     Wire.write(to_send, 4);
-    Wire.endTransmission();
+    digitalWrite(13, LOW);
+      Wire.endTransmission();
+      digitalWrite(13, HIGH); 
+      delay(1);
 
   }
 }
@@ -982,8 +994,9 @@ void send_data_to_rasp(const char T){
   byte to_send[14];
   byte lux_obs_send[4], ref_lux_send[4], control_lux_send[4], noise_send[4];
   float ref_lux, meas_lux;
+  int n;
 
-  ref_lux = (float) ill_des;
+  ref_lux = (int) ill_des;
   meas_lux = (float) lux_obs;
 
   t_send = millis() - t_init;
@@ -995,23 +1008,23 @@ void send_data_to_rasp(const char T){
       
       to_send[1] = (byte) my_address;
 
-      to_send[2] = (byte) (t_send >> 24);
-      to_send[3] = (byte) (t_send >> 16);
-      to_send[4] = (byte) (t_send >> 8);
-      to_send[5] = (byte) (t_send);
-
       float2Bytes(meas_lux, lux_obs_send);
       
-      to_send[6] = lux_obs_send[0];
-      to_send[7] = lux_obs_send[1];
-      to_send[8] = lux_obs_send[2];
-      to_send[9] = lux_obs_send[3];
+      to_send[2] = lux_obs_send[0];
+      to_send[3] = lux_obs_send[1];
+      to_send[4] = lux_obs_send[2];
+      to_send[5] = lux_obs_send[3];
 
-      to_send[10] = (byte) u_des;
+      to_send[6] = (byte) u_des;
       
       Wire.beginTransmission(0); //address of the raspberry pi
-      Wire.write(to_send, 11);
-      Wire.endTransmission(); 
+      Wire.write(to_send, 7);
+      digitalWrite(13, LOW);
+      n = Wire.endTransmission();
+      digitalWrite(13, HIGH); 
+      
+      Serial.println(n);
+      delay(1);
       
       break;
     case 'C':
@@ -1026,17 +1039,15 @@ void send_data_to_rasp(const char T){
       to_send[3] = control_lux_send[1];
       to_send[4] = control_lux_send[2];
       to_send[5] = control_lux_send[3];
-
-      float2Bytes(ref_lux, ref_lux_send);
       
-      to_send[6] = ref_lux_send[0];
-      to_send[7] = ref_lux_send[1];
-      to_send[8] = ref_lux_send[2];
-      to_send[9] = ref_lux_send[3];
-
+      to_send[6] = (byte) ref_lux;
+      
       Wire.beginTransmission(0); //address of the raspberry pi
-      Wire.write(to_send, 10);
-      Wire.endTransmission(); 
+      Wire.write(to_send, 7);
+      digitalWrite(13, LOW);
+      Wire.endTransmission();
+      digitalWrite(13, HIGH); 
+      delay(1);
       
       break;
     case 'F':
@@ -1046,15 +1057,23 @@ void send_data_to_rasp(const char T){
       to_send[1] = (byte) my_address;
 
       float2Bytes((float)convert_V_lux(Vnoise), noise_send);
+
+      to_send[2] = (byte) (t_send >> 24);
+      to_send[3] = (byte) (t_send >> 16);
+      to_send[4] = (byte) (t_send >> 8);
+      to_send[5] = (byte) (t_send);
       
-      to_send[2] = noise_send[0];
-      to_send[3] = noise_send[1];
-      to_send[4] = noise_send[2];
-      to_send[5] = noise_send[3];
+      to_send[6] = noise_send[0];
+      to_send[7] = noise_send[1];
+      to_send[8] = noise_send[2];
+      to_send[9] = noise_send[3];
 
       Wire.beginTransmission(0); //address of the raspberry pi
-      Wire.write(to_send, 6);
-      Wire.endTransmission(); 
+      Wire.write(to_send, 10);
+      digitalWrite(13, LOW);
+      Wire.endTransmission();
+      digitalWrite(13, HIGH);
+      delay(1);
       
       break;
   }
@@ -1359,14 +1378,14 @@ int controller::feedback_control(){
 
 **************************************************************************/
 void controller::control_interrupt(){
-
-  t2 = t1;
+  if(!stop_int){
+    t2 = t1;
   t1 = micros();
 
   
   u_fb = feedback_control();
   u_des = u_fb + u_con;
-
+  
   //flickering effect
   if (u_ant <= 0 && u_des <= 3 && flag_fl == 1) {
     u_des = 0;
@@ -1382,6 +1401,8 @@ void controller::control_interrupt(){
   u_ant = u_des;
 
   flag_send_to_rasp = true;
+  }
+  
 }
 
 
@@ -1430,13 +1451,15 @@ void new_consensus_result(){
 
 **************************************************************************/
 void loop() {
-  
+  stop_int =false; 
   verify_toggle();
  
   
   if (flag_turn_consensus) {
+    stop_int =true;
     algoritm_consensus.concensus(ill_des);
     flag_turn_consensus = false;
+    stop_int =false;
     Serial.println("end");
     
   }
@@ -1453,10 +1476,15 @@ void loop() {
       toggle_ant = HIGH;
       
       //sprintf(str_send, "%s", TURN_ON_CONSENSUS);
-      send_msg(TURN_ON_CONSENSUS, my_address, 0, 0);
-      algoritm_consensus.concensus(ill_des);
-      send_data_to_rasp('C');
-      Serial.println("end");
+      if (!flag_turn_consensus) {
+        stop_int =true;
+        send_msg(TURN_ON_CONSENSUS, my_address, 0, 0);
+        algoritm_consensus.concensus(ill_des);
+        send_data_to_rasp('C'); 
+        stop_int =false; 
+      }
+      
+      //Serial.println("end");
     }
 
     acquire_samples();
@@ -1466,6 +1494,7 @@ void loop() {
     //toggle is LOW - LED is turn off
 
     if (toggle_ant) {
+      
       v_i = analogRead(sensorPin) / 204.6;
       t_change = micros();
       ill_des = 20;
@@ -1473,27 +1502,34 @@ void loop() {
       toggle_ant = LOW;
 
       //sprintf(str_send, "%s", TURN_ON_CONSENSUS);
-      send_msg(TURN_ON_CONSENSUS, my_address, 0, 0);
-      
-      algoritm_consensus.concensus(ill_des);
-      send_data_to_rasp('C');
-      Serial.println("end");
+      if (!flag_turn_consensus) {
+        stop_int =true;
+        send_msg(TURN_ON_CONSENSUS, my_address, 0, 0);
+        algoritm_consensus.concensus(ill_des);
+        send_data_to_rasp('C'); 
+        stop_int =false; 
+      }
+      //Serial.println("end");
     }
 
     acquire_samples();
     change_led(u_des);
   }
 
-  if (flag_send_to_rasp){
-    send_data_to_rasp('I');
+  if (flag_send_to_rasp && !flag_turn_consensus){
+    if (c > 100){
+      send_data_to_rasp('I');
+      c = 0;
+    }
+    c++;
     flag_send_to_rasp = false;
   }
   
-  /*rate = analogRead(sensorPin);
+  rate = analogRead(sensorPin);
   Serial.print(read_lux(rate));
   Serial.print(" ");
   Serial.print(ill_des);
-  Serial.print("\n");*/
+  Serial.print("\n");
   
   //print_results();
 

@@ -39,6 +39,8 @@
 #define CONF_READ_YOUR_LED "CYL"
 #define DONE_READ "DR_"
 #define TURN_ON_CONSENSUS "TC_"
+#define NEW_NODE "NN_"
+#define NODE_HERE "NH_"
 
 //consensus messages type
 #define SEND_RESULT "SRD"
@@ -71,6 +73,9 @@ volatile bool read_led = false;
 volatile bool end_read = false;
 volatile bool flag_turnON = false;
 volatile bool flag_turn_consensus = false;
+volatile bool flag_calib = false;
+volatile bool flag_increase_nodes = false;
+
 int orig_addr = 0;
 
 int rate;
@@ -145,6 +150,11 @@ String pwm_TW;
 
 //frequency
 unsigned long t1=0, t2=0;
+
+int nodes[127] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 };
+int n_calib = 0;
+int node_n = 1;
+bool alone = true;
 
 int c = 0;
 
@@ -244,7 +254,7 @@ void setup() {
   t_init = millis();
   t_change = t_init;
   t1 = t_init;
-  send_data_to_rasp('F');
+  //send_data_to_rasp('F');
   //Enable interruption
   sei();
   
@@ -848,7 +858,7 @@ void receive_msg(int numBytes){
   }
   type_msg[3] = '\0';
   orig_addr = (int) msg_recv[3];//converto to int
-  //Serial.println(msg_recv);
+  Serial.println(msg_recv);
 
   if(strcmp(type_msg, READ_MY_LED) == 0){
       read_led = true;
@@ -1493,7 +1503,7 @@ void loop() {
         stop_int =false; 
       }
       
-      //Serial.println("end");
+      Serial.println("end");
     }
 
     acquire_samples();
@@ -1518,7 +1528,7 @@ void loop() {
         send_data_to_rasp('C'); 
         stop_int =false; 
       }
-      //Serial.println("end");
+      Serial.println("end");
     }
 
     acquire_samples();
@@ -1526,7 +1536,7 @@ void loop() {
   }
 
   if (flag_send_to_rasp && !flag_turn_consensus){
-    if (c > 100){
+    if (c > 50){
       send_data_to_rasp('I');
       c = 0;
     }
@@ -1534,11 +1544,11 @@ void loop() {
     flag_send_to_rasp = false;
   }
   
-  rate = analogRead(sensorPin);
+  /*rate = analogRead(sensorPin);
   Serial.print(read_lux(rate));
   Serial.print(" ");
   Serial.print(ill_des);
-  Serial.print("\n");
+  Serial.print("\n");*/
   
   //print_results();
 
