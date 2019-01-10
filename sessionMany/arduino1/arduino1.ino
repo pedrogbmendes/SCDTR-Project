@@ -114,7 +114,7 @@ int u_des;  //pwm signal desire to apply on led
 float gain[2]; //static gain for each led
 
 //Calibration of LDR
-float m = -0.62;
+float m = -0.68;
 float b = 4.8;
 
 //PI variables
