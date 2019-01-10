@@ -247,13 +247,13 @@ void setup() {
   calib.new_node();
   calib.calibrate();
 
-  Serial.println(gain[0]);
-  Serial.println(gain[1]);
+  //Serial.println(gain[0]);
+  //Serial.println(gain[1]);
   
   gain[0] = (read_lux(gain[0]) - read_lux(Vnoise))/255;
   gain[1] = (read_lux(gain[1]) - read_lux(Vnoise))/255;
-  Serial.println(gain[0]);
-  Serial.println(gain[1]);
+  //Serial.println(gain[0]);
+  //Serial.println(gain[1]);
 
   //delay(1000);
   
@@ -400,7 +400,6 @@ ISR(TIMER1_COMPA_vect){
   void INIT_cali::new_node(){
     int n;
     unsigned long t_no = millis();
-    calib.init_noise();
     send_msg(NEW_NODE, my_address, 0, 0, 0);
     while(millis() - t_no < 3000){
       if(flag_increase_nodes) {
@@ -423,6 +422,9 @@ ISR(TIMER1_COMPA_vect){
     while(n_calib < node_n) {
       
       if(check_turn()) {
+
+        calib.init_noise();
+        
         analogWrite(ledPin, 255);
         delay(1000);
    
@@ -502,6 +504,7 @@ ISR(TIMER1_COMPA_vect){
     analogWrite(ledPin, 0);//turn off the led
     
     Vnoise = analogRead(sensorPin); //read the 
+    Serial.println(Vnoise);
     delay(50);
 
   }
@@ -632,13 +635,18 @@ void consensus_class::concensus(float lumi_desire){
   
     for(int h=0; h<50; h++){
 
-      
+//Serial.println(h);
       
       primal_solve(node);// return the cost and dn[2]
       node.d[0] = dn[0];
       node.d[1] = dn[1];
 
+      
+
       if(alone) break;
+
+      while(!flag_consensus){}//waiting for the response
+      flag_consensus = false;
       
       //each node needs to send d
 
@@ -657,16 +665,13 @@ void consensus_class::concensus(float lumi_desire){
       }else if (node.d[1] >= 100){
           dtostrf(node.d[1],6,2,char_d1);
       }
-      Serial.println("56");
+      //Serial.println("56");
       
       
 
       
       //send a message with the updated data
-      send_msg(SEND_RESULT, my_address, node.d[0], node.d[1], orig_addr);
-
-      while(!flag_consensus){}//waiting for the response
-      flag_consensus = false;
+      send_msg(SEND_RESULT, my_address, node.d[0], node.d[1], 2);
       
       //Compute average with available data
       node.d_av[0] = (node.d[0] + d_neigh[0])/2;
@@ -1601,7 +1606,7 @@ void loop() {
   if (flag_turn_consensus) {
     algoritm_consensus.concensus(ill_des);
     flag_turn_consensus = false;
-    Serial.println("end");
+    //Serial.println("end");
     
   }
   
@@ -1617,10 +1622,12 @@ void loop() {
       toggle_ant = HIGH;
       
       //sprintf(str_send, "%s", TURN_ON_CONSENSUS);
-      send_msg(TURN_ON_CONSENSUS, my_address, 0, 0, orig_addr);
+      if(!alone) send_msg(TURN_ON_CONSENSUS, my_address, 0, 0, 2);
+      delay(10);
+      //Serial.println("end");
       algoritm_consensus.concensus(ill_des);
       send_data_to_rasp('C');
-      Serial.println("end");
+      //Serial.println("end");
     }
 
     acquire_samples();
@@ -1637,11 +1644,12 @@ void loop() {
       toggle_ant = LOW;
 
       //sprintf(str_send, "%s", TURN_ON_CONSENSUS);
-      if(!alone) send_msg(TURN_ON_CONSENSUS, my_address, 0, 0, 0);
-      
+      if(!alone) send_msg(TURN_ON_CONSENSUS, my_address, 0, 0, 2);
+      //Serial.println("end");
       algoritm_consensus.concensus(ill_des);
+      
       send_data_to_rasp('C');
-      Serial.println("end");
+      //Serial.println("end");
     }
 
     acquire_samples();
@@ -1650,7 +1658,7 @@ void loop() {
 
   if (flag_send_to_rasp){
     if(c > 100) {
-      send_data_to_rasp('I');
+      //send_data_to_rasp('I');
       c = 0;
     }
     c++;
@@ -1667,8 +1675,8 @@ void loop() {
     calib.calibrate();
     gain[0] = (read_lux(gain[0]) - read_lux(Vnoise))/255;
     gain[1] = (read_lux(gain[1]) - read_lux(Vnoise))/255;
-    Serial.println(gain[0]);
-    Serial.println(gain[1]);
+    //Serial.println(gain[0]);
+    //Serial.println(gain[1]);
     flag_calib = false;
   }
   /*rate = analogRead(sensorPin);
