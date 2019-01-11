@@ -680,7 +680,7 @@ rate = analogRead(sensorPin);
   
   for(int i = 0; i < 256; i++){
     analogWrite(ledPin, i);
-    delay(1000);
+    delay(500);
     rate = analogRead(sensorPin);
     Serial.println(rate);
     

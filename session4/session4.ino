@@ -60,7 +60,7 @@ float u_wdp = 0; //windup
 float p = 0, i = 0;
 
 //variables of controller
-float ill_des, t_change; //luminace desire and new initial time
+float ill_des = 10, t_change; //luminace desire and new initial time
 float v_obs = 0, v_i = 0, v_des = 0; //observed, initial and desired tension
 float error = 0; //error of desired and observed luminance
 int u_fb, u_ff; //feedback and feedforward
@@ -72,7 +72,7 @@ String inChar; //string to read anf input
 int flag_wdp = 1; //(des)activate windup function
 int flag_pro = 1; //(des)activate proportional controler
 int flag_int = 1; //(des)activate integral controler
-int flag_ff = 0; //(des)activate feedforward
+int flag_ff = 1; //(des)activate feedforward
 int flag_dz = 1; //(des)activate deadzone function
 int flag_fl = 1; //(des)activate flickering function
 int flag_dv = 0; //(des)activate demonstration/print of tension
@@ -82,9 +82,10 @@ bool flag_setLed = LOW; //(des)activate demosntration of Led dimming values
 
 int pwm_towrite = 0;
 String pwm_TW;
+int c = 0;
 
 //frequency
-unsigned long t1=0, t2=0;
+unsigned long t1=0, t2=0, taux = 0;
 
 
 /**************************************************************************
@@ -518,6 +519,7 @@ int feedback_control(float lux_des, float lux_obs){
 **************************************************************************/
 void controller(){
 
+  
   v_des = simulator(ill_des, v_i, t_change);
 
   lux_des = convert_V_lux(v_des);
@@ -525,6 +527,7 @@ void controller(){
 
   u_ff = flag_ff * feedforward_control(ill_des);
   error = lux_des - lux_obs;
+  
 }
 
 
@@ -561,6 +564,8 @@ void control_interrupt(){
   }
 
   u_ant = u_des;
+
+  
 }
 
 
@@ -661,6 +666,7 @@ void print_results(){
     Serial.print(convert_V_lux(v_obs));
     Serial.print(" ");
     Serial.print(ill_des);
+    Serial.print(" ");
     Serial.print("\n");
   }
 
@@ -718,19 +724,22 @@ void print_results(){
 **************************************************************************/
 void loop()
 {
-
+  taux = micros();
   set_flags();
   verify_toggle();
+ 
+ 
 
   if (toggle) {
     //toggle is HIGH
-
+    
     if (!toggle_ant) {
       v_i = analogRead(sensorPin) / 204.6;
       t_change = micros();
       ill_des = 50;
       dz = 1;
       toggle_ant = HIGH;
+      
     }
 
     acquire_samples();
@@ -744,14 +753,17 @@ void loop()
       v_i = analogRead(sensorPin) / 204.6;
       t_change = micros();
       ill_des = 20;
-      dz = 0.7;
+      dz = 1;
       toggle_ant = LOW;
-    }
+      }
 
     acquire_samples();
     controller();
     change_led(u_des);
+    
   }
-
+  c++;
   print_results();
+  taux = micros() - taux;
+  Serial.println(taux);
 }
