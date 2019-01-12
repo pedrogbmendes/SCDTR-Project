@@ -1742,7 +1742,6 @@ void loop() {
       dz = 1;
       toggle_ant = LOW;
 
-      //sprintf(str_send, "%s", TURN_ON_CONSENSUS);
       if(!alone && !individual) {
         send_msg(TURN_ON_CONSENSUS, my_address, 0, 0, 1);
         algoritm_consensus.concensus(ill_des);
@@ -1777,9 +1776,6 @@ void loop() {
     flag_calib = false;
   }
 
-  
   print_results();
   
-
-
 }
