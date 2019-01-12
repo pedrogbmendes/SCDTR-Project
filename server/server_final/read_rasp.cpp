@@ -38,19 +38,18 @@
 
 /**************************************************************************
 
-      Function:
+      Function:store_message
 
-      Arguments:
-      Return value:
+      Arguments:vec_nodes and message
+      Return value: 0 in sucess
 
-      Description: )
+      Description: the function receives the data structure and the message
+from the arduino. It decodes de message .Depending of the messages it stores
+and compute some statistics
 
 **************************************************************************/
 int process_msg::store_message(char*message, std::vector<msg_save*> &vec_nodes){
-/*message protocol:
-  the first three bytes are the type of the message
-  the fourth byte is the addres of the sender's node
-*/
+
   int orig_addr;
   data_list data_recv;
   msg_save *new_node;
@@ -185,38 +184,37 @@ int process_msg::store_message(char*message, std::vector<msg_save*> &vec_nodes){
     mtx.unlock();
   }
 
+  //print results
 
-  mtx.lock();
+  /*mtx.lock();
   std::cout<< "addr= " <<   vec_nodes[orig_addr]->address <<"\n";
   if(type_msg ==  'C'){
-  //std::cout<< "control= "<<  vec_nodes[orig_addr]->control_lux<<";\tref_lux= "<<vec_nodes[orig_addr]->ref_lux<<"\n";
+    std::cout<< "control= "<<  vec_nodes[orig_addr]->control_lux<<";\tref_lux= "<<vec_nodes[orig_addr]->ref_lux<<"\n";
 
   }else if (type_msg ==  'F'){
-  //std::cout<< "noise_lux= "<<  vec_nodes[orig_addr]->Inoise<<"time= "<<vec_nodes[orig_addr]->time_init<<"\n";
+    std::cout<< "noise_lux= "<<  vec_nodes[orig_addr]->Inoise<<"time= "<<vec_nodes[orig_addr]->time_init<<"\n";
 
   }else if (type_msg == 'I'){
     std::cout<<"comfort_error= "<<vec_nodes[orig_addr]->sum_Cerror<<"\nflicker= "<<vec_nodes[orig_addr]->sum_Flicker<<"\nenergy= "<<vec_nodes[orig_addr]->sum_Energy<<"\n";
-    //std::cout<<"\nmeasure_lux= "<<vec_nodes[orig_addr]->data_buf.end()[-1].measure_lux<<"\npwm= "<<vec_nodes[orig_addr]->data_buf.end()[-1].pwm<<"\n";
-    /*for(int j=0; j<vec_nodes[orig_addr]->count_samples; j++){
+    std::cout<<"\nmeasure_lux= "<<vec_nodes[orig_addr]->data_buf.end()[-1].measure_lux<<"\npwm= "<<vec_nodes[orig_addr]->data_buf.end()[-1].pwm<<"\n";
+    for(int j=0; j<vec_nodes[orig_addr]->count_samples; j++){
       std::cout <<j<<"\ntime=" <<vec_nodes[orig_addr]->data_buf[j].time << "\npwm="<< vec_nodes[orig_addr]->data_buf[j].pwm <<"\nmeas_lux=" << vec_nodes[orig_addr]->data_buf[j].measure_lux  << "\n";
-    }*/
+    }
   }
-  mtx.unlock();
+  mtx.unlock();*/
+
   return 0;
 }
 
 
-
-
-
 /**************************************************************************
 
-      Function:
+      Function:Bytes2float
 
-      Arguments:
-      Return value:
+      Arguments:to_conv
+      Return value: float value
 
-      Description: )
+      Description: convert from type byte to type float
 
 **************************************************************************/
 float process_msg::Bytes2float(char to_conv[4]){
@@ -237,29 +235,31 @@ float process_msg::Bytes2float(char to_conv[4]){
 
 /**************************************************************************
 
-      Function:
+      Function:energy_consumed
 
-      Arguments:
-      Return value:
+      Arguments: pwmi, v_sum_Energy
+      Return value: accumulated energy
 
-      Description: )
+      Description: Receives a new value of the pwm and it computes the
+accumulated energy
 
 **************************************************************************/
 float process_msg::energy_consumed(int pwmi, float v_sum_Energy ){
 
-  return v_sum_Energy + pwmi*(1);
+  return v_sum_Energy + pwmi*(0.01);
 }
 
 
 
 /**************************************************************************
 
-      Function:
+      Function:comfort_flicker
 
-      Arguments:
-      Return value:
+      Arguments: l1, l2 , l3, v_sum_Flicker
+      Return value: accumulated flicker
 
-      Description: )
+      Description: receives a new sample and it has to compute the accumulated
+flicker
 
 **************************************************************************/
 float process_msg::comfort_flicker(float l1, float l2, float l3, float v_sum_Flicker){
@@ -277,12 +277,13 @@ float process_msg::comfort_flicker(float l1, float l2, float l3, float v_sum_Fli
 
 /**************************************************************************
 
-      Function:
+      Function:comfort_error
 
-      Arguments:
-      Return value:
+      Arguments:mea_lux, ref_lux, v_sum_Cerror
+      Return value:accumulated comfort error
 
-      Description: )
+      Description: receives a new sample and it has to compute the accumulated
+comfort flicker
 
 **************************************************************************/
 float process_msg::comfort_error(float mea_lux, float v_sum_Cerror, float refLux){
@@ -296,16 +297,14 @@ float process_msg::comfort_error(float mea_lux, float v_sum_Cerror, float refLux
 }
 
 
-
-
 /**************************************************************************
 
-      Function:
+      Function:init_slave
 
-      Arguments:
-      Return value:
+      Arguments:xfer, addr
+      Return value:bscXfer(&xfer)
 
-      Description: )
+      Description: enables the i2c communication
 
 **************************************************************************/
 int process_msg::init_slave(bsc_xfer_t &xfer, int addr){
@@ -332,12 +331,12 @@ int process_msg::init_slave(bsc_xfer_t &xfer, int addr){
 
 /**************************************************************************
 
-      Function:
+      Function:close_slave
 
-      Arguments:
-      Return value:
+      Arguments:xfer
+      Return value:bscXfer(&xfer)
 
-      Description: )
+      Description: ends the i2c communication
 
 **************************************************************************/
 int process_msg::close_slave(bsc_xfer_t &xfer) {
@@ -348,12 +347,13 @@ int process_msg::close_slave(bsc_xfer_t &xfer) {
 
 /**************************************************************************
 
-      Function:
+      Function: read_bus
 
-      Arguments:
-      Return value:
+      Arguments:vec_nodes
+      Return value: 1 if error occurs;
+                    -1 at the end
 
-      Description: )
+      Description: reads the messages of the i2c bus using pigpio
 
 **************************************************************************/
 int process_msg::read_bus(std::vector<msg_save*> &vec_nodes) {

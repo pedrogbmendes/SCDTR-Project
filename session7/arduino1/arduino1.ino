@@ -1176,7 +1176,7 @@ int controller::feedback_control(){
   //calculates the error between the desired and observed luminance
   err = lux_des - lux_obs;
 
-  /*deadzone - if teh error is very small, it's aproximanted by zero */
+  /*deadzone - if the error is very small, it's aproximanted by zero */
   if (abs(err) < flag_dz * dz) {
       err = 0;
     }

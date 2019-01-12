@@ -37,7 +37,8 @@ std::mutex mtx;
 //ALARMS
 void sighandler() {
 	//sighandler to ignore keyboard interruptions
-
+  signal(SIGINT, SIG_IGN);		//ignore crtl+C
+	signal(SIGTSTP, SIG_IGN);		//ignore crtl+Z
 }
 
 
@@ -74,12 +75,12 @@ class connection_client: public boost::enable_shared_from_this<connection_client
 
 /**************************************************************************
 
-      Function:
+      Function: request_client
 
-      Arguments:
-      Return value:
+      Arguments:error
+      Return value: void
 
-      Description: )
+      Description: receives a request from client
 
 **************************************************************************/
     void request_client(const boost::system::error_code& error){
@@ -96,12 +97,12 @@ class connection_client: public boost::enable_shared_from_this<connection_client
 
 /**************************************************************************
 
-      Function:
+      Function: answer_request
 
-      Arguments:
-      Return value:
+      Arguments: error
+      Return value: void
 
-      Description: )
+      Description: Handles with the request of the client
 
 **************************************************************************/
     void answer_request(const boost::system::error_code& error){
@@ -208,12 +209,13 @@ class connection_client: public boost::enable_shared_from_this<connection_client
 
 /**************************************************************************
 
-      Function:
+      Function: get_info
 
-      Arguments:
-      Return value:
+      Arguments: desk_i, unit
+      Return value: string
 
-      Description: )
+      Description: computes the message to reply to the client in the request
+is of type g
 
 **************************************************************************/
     std::string get_info(char unit, std::string desk_i){
@@ -410,14 +412,16 @@ class connection_client: public boost::enable_shared_from_this<connection_client
       return msg_send;
     }
 
+
 /**************************************************************************
 
-      Function:
+      Function:get_last_minute
 
-      Arguments:
-      Return value:
+      Arguments:desk_i, unit
+      Return value: string
 
-      Description: )
+      Description: Creates the message containing the last minute buffer
+to reply to the client
 
 **************************************************************************/
     std::string get_last_minute(char unit, std::string desk_i){
@@ -484,12 +488,13 @@ class connection_client: public boost::enable_shared_from_this<connection_client
 
 /**************************************************************************
 
-      Function:
+      Function: reset_info
 
-      Arguments:
-      Return value:
+      Arguments: non
+      Return value: string
 
-      Description: )
+      Description: deletes all the data from the data base and sends a
+ack to the client
 
 **************************************************************************/
     std::string reset_info(){
@@ -523,12 +528,14 @@ class connection_client: public boost::enable_shared_from_this<connection_client
 
 /**************************************************************************
 
-      Function:
+      Function:get_stream_info
 
-      Arguments:
-      Return value:
+      Arguments: unit, desk_i
+      Return value: string
 
-      Description: )
+      Description: The message received is from type s, that means that is a
+new request for stream (and in this case is add to the list) or a stream needs
+to stop (delete the respective stream information from the list)
 
 **************************************************************************/
     std::string get_stream_info(char unit, std::string desk_i){
@@ -599,12 +606,13 @@ class connection_client: public boost::enable_shared_from_this<connection_client
 
 /**************************************************************************
 
-      Function:
+      Function: handle_stream
 
-      Arguments:
-      Return value:
+      Arguments: non
+      Return value: void
 
-      Description: )
+      Description: Funstions that sees if there are stream requested and
+if yes it send the respective stream for the client
 
 **************************************************************************/
     void handle_stream(){
@@ -631,13 +639,10 @@ class connection_client: public boost::enable_shared_from_this<connection_client
 	      }
 			}
       mtx.unlock();
-
-
     }
 
 
     void nothing(const boost::system::error_code& error){
-
 			/*if(error)
 				socket_client.close();
 */
@@ -646,12 +651,12 @@ class connection_client: public boost::enable_shared_from_this<connection_client
 
 /**************************************************************************
 
-      Function:
+      Function: deadline_handler
 
-      Arguments:
-      Return value:
+      Arguments:error
+      Return value: void
 
-      Description: )
+      Description: waits for a connection of the client
 
 **************************************************************************/
     void deadline_handler(const boost::system::error_code& error){
@@ -667,23 +672,19 @@ class connection_client: public boost::enable_shared_from_this<connection_client
 
 		}
 
-/**************************************************************************
-
-**************************************************************************/
+/**************************************************************************/
 
   public:
-    //smart pointer constructor
-
-    //typedef boost::shared_ptr<connection_client> boost::shared_ptr;
-
+    //class constructor
     static boost::shared_ptr<connection_client> create(boost::asio::io_service& io) {
         return boost::shared_ptr<connection_client>(new connection_client(io));
     }
 
+    //socket creation
     ip::tcp::socket& socket() {return socket_client;}
 
 
-
+    //start the connection with the client
     void start(){
       //set timer
       timer_.expires_from_now(std::chrono::milliseconds(1000));
@@ -753,12 +754,12 @@ class tcp_server
 
 /**************************************************************************
 
-      Function:
+      Function: call_arduino_msg
 
-      Arguments:
-      Return value:
+      Arguments: non
+      Return value: void
 
-      Description:
+      Description: creates the thread to handle the messages of the arduino
 
 **************************************************************************/
 void call_arduino_msg(){
@@ -769,21 +770,12 @@ void call_arduino_msg(){
 
 
 /**************************************************************************
-
-      Function:
-
-      Arguments:
-      Return value:
-
-      Description:
-
+      Function:main
 **************************************************************************/
 
 int main(int argc, char const *argv[]) {
 
-
-	signal(SIGINT, SIG_IGN);		//ignore crtl+C
-	signal(SIGTSTP, SIG_IGN);		//ignore crtl+Z
+  sighandler();
 
   boost::asio::io_service io;
 

@@ -2809,6 +2809,8 @@ t = t * 10^(-6);
 
 figure(1);
 plot(t,v);
+xlabel("time (s)");
+ylabel("V");
 
 aux = 50 ;
 stab = zeros(1, 14);
@@ -2816,6 +2818,7 @@ for i=1:1:14
     stab(i) = mean (v(aux:aux+50)); 
     aux = aux + 100;
 end
+
 
 aux = 1;
 y_tau =  zeros(1, 14);
@@ -2850,6 +2853,11 @@ pmw_aux = (0:0.1:255);
 f2 = 0.0106+0.028*power(10,-0.009*pmw_aux);
 hold on;
 plot(pmw_aux,f2);
+xlabel("PWM");
+ylabel("time (s)");
+xlim([0 260])
+legend('Data','Trend line');
+
 
 
 

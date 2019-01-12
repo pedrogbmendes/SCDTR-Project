@@ -98,7 +98,7 @@ typedef struct data_list{
 class msg_save{
   public:
     msg_save ():
-    data_buf(3000)
+    data_buf(6000)
     {
     }
     int address;

@@ -908,3 +908,54 @@ t = s(2:2:end,:);  % even matrix
 t = t * 10^(-6);
 
 plot(t,v);
+xlabel("time (s)");
+ylabel("V");
+
+
+aux = 30 ;
+stab = zeros(1, 9);
+for i=1:1:9
+    stab(i) = mean (v(aux:aux+20)); 
+    aux = aux + 50;
+end
+
+
+
+gain =  zeros(1, 9);
+
+gain(1)=stab(1)/50;
+gain(2)=(stab(2)-stab(1))/50;
+gain(3)=(stab(3)-stab(2))/50;
+gain(4)=(stab(4)-stab(3))/50;
+gain(5)=(stab(5)-stab(4))/55;
+gain(6)=(stab(6)-stab(5))/(-55);
+gain(7)=(stab(7)-stab(6))/(-50);
+gain(8)=(stab(8)-stab(7))/(-50);
+gain(9)=(stab(9)-stab(8))/(-50);
+
+gainn(1)=stab(1)/50;
+gainn(2)=stab(2)/100;
+gainn(3)=stab(3)/150;
+gainn(4)=stab(4)/200;
+gainn(5)=stab(5)/255;
+gainn(6)=stab(6)/200;
+gainn(7)=stab(7)/150;
+gainn(8)=stab(8)/100;
+gainn(9)=stab(9)/50;
+
+
+
+pwm = [50 100 150 200 255 200 150 100 50];
+figure(2);
+hold on
+%plot(pwm, gain,'.');
+plot(pwm, gainn,'x');
+pmw_aux = (0:0.1:255);
+f2 = 0.015+0.085*power(10,-0.007*pmw_aux);
+hold on;
+plot(pmw_aux,f2);
+xlabel("PWM");
+ylabel('$K_0$','Interpreter','latex');
+xlim([0 260])
+legend('Data','Trend line');
+

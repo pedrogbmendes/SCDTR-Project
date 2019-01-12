@@ -449,13 +449,10 @@ int process_msg::read_bus(std::vector<msg_save*> &vec_nodes) {
     if(xfer.rxCnt > 0){
 
 //      message = std::string(xfer.rxBuf).substr(0,xfer.rxCnt);
-for(int j=0;j<xfer.rxCnt;j++)
-message[j] = xfer.rxBuf[j];
-message[xfer.rxCnt]='\0';
-std::cout << "Received" << xfer.rxCnt << "bytes\n";
-      std::cout << message <<"-------"<<'\n';
-      store_message(message, vec_nodes);
-      //message = '\0';
+  for(int j=0;j<xfer.rxCnt;j++)
+    message[j] = xfer.rxBuf[j];
+    message[xfer.rxCnt]='\0';
+    store_message(message, vec_nodes);
     }
 
   }
