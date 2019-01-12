@@ -142,13 +142,13 @@ int flag_dl = 1; //(des)activate demonstration/print of luminance
 int flag_dg = 0; //(des)activate demonstration/print of gain
 bool flag_setLed = LOW; //(des)activate demosntration of Led dimming values
 bool flag_send_to_rasp = false;
-bool individual = HIGH;
+bool individual = LOW;
 
 int pwm_towrite = 0;
 String pwm_TW;
 
 //frequency
-unsigned long t1=0, t2=0;
+unsigned long t1=0, t2=0, taux;
 
 // Array of existent nodes
 int nodes[127] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 };
@@ -156,7 +156,7 @@ int n_calib = 0;
 int node_n = 1;
 bool alone = true;
 
-int c = 0;
+int c = 0, ct2 = 0;
 
 
 /**************************************************************************
@@ -259,6 +259,10 @@ void setup() {
   gain[1] = (read_lux(gain[1]) - read_lux(Vnoise))/255;
   //Serial.println(gain[0]);
   //Serial.println(gain[1]);
+  
+    Serial.println(gain[0]);
+    Serial.println(gain[1]);
+    Serial.println(read_lux(Vnoise));
 
   //delay(1000);
   
@@ -434,7 +438,9 @@ ISR(TIMER1_COMPA_vect){
       
       if(check_turn()) {
 
+        delay(500);
         calib.init_noise();
+        
         analogWrite(ledPin, 255);
         delay(1000);
         
@@ -672,8 +678,6 @@ void consensus_class::concensus(float lumi_desire){
           dtostrf(node.d[1],6,2,char_d1);
       }
 
-      
-      
       //send a message with the updated data
       send_msg(SEND_RESULT, my_address, node.d[0], node.d[1], 1);
 
@@ -688,7 +692,6 @@ void consensus_class::concensus(float lumi_desire){
       //Update local lagrangians
       node.y[0]  = node.y[0] + rho*(node.d[0]-node.d_av[0]);
       node.y[1]  = node.y[1] + rho*(node.d[1]-node.d_av[1]);
-  
   
     }
     d_con[0] = int((node.d_av[0]*255.0)/100);
@@ -1714,6 +1717,9 @@ void print_results(){
     Serial.print(" ");
     Serial.print(ill_des);
     Serial.print(" ");
+    Serial.print(u_des);
+    Serial.print(" ");
+    Serial.print(millis());
     Serial.print("\n");
   }
 
@@ -1779,6 +1785,8 @@ void loop() {
     //Serial.println("end");
     
   }
+
+  
   
   if (toggle) {
     //toggle is HIGH
@@ -1813,7 +1821,7 @@ void loop() {
       v_i = analogRead(sensorPin) / 204.6;
       t_change = micros();
       ill_des = 20;
-      dz = 0.7;
+      dz = 1;
       toggle_ant = LOW;
 
       //sprintf(str_send, "%s", TURN_ON_CONSENSUS);
@@ -1834,7 +1842,7 @@ void loop() {
 
   if (flag_send_to_rasp){
     if(c > 100) {
-      //send_data_to_rasp('I');
+      send_data_to_rasp('I');
       c = 0;
     }
     c++;
@@ -1855,11 +1863,13 @@ void loop() {
     calib.calibrate();
 
     //Serial.println(gain[0]);
-  //Serial.println(gain[1]);
+    //Serial.println(gain[1]);
     gain[0] = (read_lux(gain[0]) - read_lux(Vnoise))/255;
     gain[1] = (read_lux(gain[1]) - read_lux(Vnoise))/255;
-    //Serial.println(gain[0]);
-    //Serial.println(gain[1]);
+    Serial.println(gain[0]);
+    Serial.println(gain[1]);
+    Serial.println(read_lux(Vnoise));
+    
     flag_calib = false;
   }
   /*rate = analogRead(sensorPin);
@@ -1868,7 +1878,8 @@ void loop() {
   Serial.print(ill_des);
   Serial.print("\n");*/
   
-  //print_results();
+  if(ct2%3 == 0) print_results();
+  ct2++;
 
 
 }
