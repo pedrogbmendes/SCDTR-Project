@@ -141,8 +141,8 @@ int flag_dv = 0; //(des)activate demonstration/print of tension
 int flag_dl = 1; //(des)activate demonstration/print of luminance
 int flag_dg = 0; //(des)activate demonstration/print of gain
 bool flag_setLed = LOW; //(des)activate demosntration of Led dimming values
-bool flag_send_to_rasp = false;
-bool individual = LOW;
+bool flag_send_to_rasp = false; // Send data to raspberry when thid flag is on
+bool individual = LOW; // Use only individual controller when HIGH
 
 int pwm_towrite = 0;
 String pwm_TW;
@@ -152,8 +152,8 @@ unsigned long t1=0, t2=0;
 
 // Array of existent nodes
 int nodes[127] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 };
-int n_calib = 0;
-int node_n = 1;
+int n_calib = 0; // Number of calibrated nodes
+int node_n = 1; // Number of active nodes
 bool alone = true;
 
 int c = 0, ct2 = 0;
@@ -161,7 +161,12 @@ int c = 0, ct2 = 0;
 
 /**************************************************************************
 
-      CLASSE DEFINITION
+      CLASS DEFINITION
+
+      INIT_cali -> Class that contains all the things related to the calibration
+      consensus_class -> Class that attribues and methods to perform the consensus algorithm
+      controller -> Class that has all the things that are necessary to perform both
+                    distributed and local control
 
 **************************************************************************/
 class INIT_cali{
@@ -235,51 +240,33 @@ void setup() {
   EEPROM.write(0, address);
   my_address = EEPROM.read(0);
 
-  //write the LDR calibration parameters in the eeprom
-  //EEPROM.write(1, -0.75);
-  //m = EEPROM.read(1);  
-  //EEPROM.write(2, 5.7);
-  //b = EEPROM.read(2);
-
   Wire.begin(my_address);
+
+  //Activate broadcast
   TWAR = (my_address << 1) | 1;
+
+  //Funtion to be called when a communication is received
   Wire.onReceive(receive_msg);
 
   set_frequency();
 
   nodes[my_address-1] = 1;
-  //calib.init_calibration();
+
+  //Procedures to enter the network
   calib.new_node();
   calib.calibrate();
-
-  //Serial.println(gain[0]);
-  //Serial.println(gain[1]);
   
   gain[0] = (read_lux(gain[0]) - read_lux(Vnoise))/255;
   gain[1] = (read_lux(gain[1]) - read_lux(Vnoise))/255;
-  
-    Serial.println(gain[0]);
-    Serial.println(gain[1]);
-    Serial.println(read_lux(Vnoise));
-
-  //delay(1000);
   
   v_i = 0;
   t_init = millis();
   t_change = t_init;
   t1 = t_init;
+
   send_data_to_rasp('F');
   //Enable interruption
   sei();
-
-  /*if (flag_calib){
-    n_calib = 0;
-    cli();
-    calib.advertise_presence();
-    calib.calibrate();
-    sei();
-    flag_calib = false;
-  }*/
 
 //delay(1000);
 
@@ -357,19 +344,14 @@ ISR(TIMER1_COMPA_vect){
 
   /**************************************************************************
 
-      Function:
+      Function: count_nodes
 
       Arguments:
       Return value:
 
-      Description: )
+      Description: Count the nodes that are active in the network
 
   **************************************************************************/
- /* void INIT_cali::init_calibration(){
-    init_noise(); //read the noise and external luminance
-    delay(1000);
-    initialization();//calibration process
-  }*/
 
   void INIT_cali::count_nodes() {
 
@@ -382,7 +364,18 @@ ISR(TIMER1_COMPA_vect){
 
     node_n = ct_nodes;
   }
-  
+
+  /**************************************************************************
+
+      Function: check_turn
+
+      Arguments:
+      Return value: bool that indicates wheter it is its turn to turn on the light
+
+      Description: Analyzes the vector of existing nodes to tell if it's the turn 
+                   of the node to turn on the LED
+
+  **************************************************************************/
   
   bool INIT_cali::check_turn() {
 
@@ -404,11 +397,23 @@ ISR(TIMER1_COMPA_vect){
     return false;
   }
 
+  /**************************************************************************
+
+      Function: new_node()
+
+      Arguments:
+      Return value: 
+
+      Description: Performs what is necessary to iform the network that a new
+                   desk is entering
+
+  **************************************************************************/
+  
   void INIT_cali::new_node(){
     int n;
     unsigned long t_no = millis();
     send_msg(NEW_NODE, my_address, 0, 0, 0);
-    while(millis() - t_no < 3000){
+    while(millis() - t_no < 2000){
       if(flag_increase_nodes) {
           node_n++;
           nodes[orig_addr-1] = 1;
@@ -419,12 +424,21 @@ ISR(TIMER1_COMPA_vect){
     if(node_n > 1) alone = false;
   }
 
+  /**************************************************************************
+
+      Function: calibrate()
+
+      Arguments:
+      Return value: 
+
+      Description: Performs what is necessary to mae a distributed calibration
+
+  **************************************************************************/
+  
   void INIT_cali::calibrate(){
 
     int Vread, n_read = 0;
     float lumi; 
-
-    //count_nodes();
 
     while(n_calib < node_n) {
       
@@ -439,9 +453,6 @@ ISR(TIMER1_COMPA_vect){
         if(!alone ){
           send_msg(READ_MY_LED, my_address, 0, 0, 0);
         
-
-          //Serial.print("node_c");
-          //Serial.print(node_n);
           while(n_read != node_n-1){
             if(end_read == true){
               n_read++;
@@ -453,10 +464,9 @@ ISR(TIMER1_COMPA_vect){
         n_calib++;
         
         Vread = analogRead(sensorPin); //read the iluminance value + noise
-        //lumi = read_lux(Vread) - read_lux(Vnoise);//subtrat the noise
+        
         gain[my_address-1] = Vread;//calculates the linera gain (lux/pwm)
         
-        //Serial.println(lumi);
         n_read = 0;
         
 
@@ -472,8 +482,7 @@ ISR(TIMER1_COMPA_vect){
           n_calib++;
 
           Vread = analogRead(sensorPin); //read the iluminance value + noise
-          //lumi = read_lux(Vread) - read_lux(Vnoise);//subtrat the noise
-          //Serial.println(lumi);
+          
           gain[orig_addr-1] = Vread;//calculates the liner gain (lux/pwm)
           delay(100);
 
@@ -487,6 +496,17 @@ ISR(TIMER1_COMPA_vect){
     } 
   }
 
+    /**************************************************************************
+
+      Function: advertise_presence()
+
+      Arguments:
+      Return value: 
+
+      Description: Performs what is necessary to inform a new node that this one is 
+                   already in the networ
+
+  **************************************************************************/
   
   void INIT_cali::advertise_presence(){
     //Serial.println(orig_addr);
@@ -499,12 +519,12 @@ ISR(TIMER1_COMPA_vect){
 
   /**************************************************************************
 
-        Function:
+        Function: init_noise()
 
         Arguments:
         Return value:
 
-        Description: )
+        Description: Computes the external illuminance influence
 
   **************************************************************************/
   void INIT_cali::init_noise(){
@@ -512,86 +532,10 @@ ISR(TIMER1_COMPA_vect){
     analogWrite(ledPin, 0);//turn off the led
     
     Vnoise = analogRead(sensorPin); //read the 
-    //Serial.println(Vnoise);
+    
     delay(50);
 
   }
-
-
-  /**************************************************************************
-
-        Function:
-
-        Arguments:
-        Return value:
-
-        Description: )
-
-  **************************************************************************/
-  /*void INIT_cali::initialization() {
-
-    int v1, v;
-    float i;
-    char str_send[5];
-    int Vread = 0;
-    float lumi = 0;
-
-    if (my_address == 1){
-      flag_turnON = true;
-    }
-
-    while(endcali == false){
-
-      if(flag_turnON == true){
-        //leader - begin the calibration process sending a message
-        analogWrite(ledPin, 255);
-        delay(1000);
-        
-       
-        //send a msg warning to the other nodes to read my value led plus my address
-        send_msg(READ_MY_LED, my_address, 0, 0);
-        
-        flag_turnON = false;
-      }
-      else if(end_read ==  true){
-        //when the node receives the confirmation from all the other nodes
-        Vread = analogRead(sensorPin); //read the iluminance value + noise
-        lumi = read_lux(Vread) - read_lux(Vnoise);//subtrat the noise
-        //Serial.println(Vread);
-        gain[my_address-1] = lumi / 255.0;//calculates the linera gain (lux/pwm)
-        //Serial.println(lumi);
-        end_read = false;
-        analogWrite(ledPin, 0);//turn off the led
-        delay(30);
-        
-        if(my_address == 1){
-          //send a message to the other arduino informing that it wants to read the other node led on value
-          send_msg(READ_YOUR_LED, my_address, 0, 0);
-        }else if(my_address == 2){
-          //send a message to the other arduino informing that it wants to read the other node led on value
-          
-          send_msg(DONE_READ, my_address, 0, 0);
-          
-          endcali = true;
-        }
-      }
-      else if(read_led == true){
-        /*when receives this message means that the other arduino is going to read is own led value
-        so this arduino has to turn off his own led and read the lux of the other led
-        analogWrite(ledPin, 0);//turn off the led
-        delay(30);
-
-        Vread = analogRead(sensorPin); //read the iluminance value + noise
-        lumi = read_lux(Vread) - read_lux(Vnoise);//subtrat the noise
-        //Serial.println(lumi);
-        gain[orig_addr-1] = lumi / 255.0;//calculates the liner gain (lux/pwm)
-        read_led = false;
-        
-        //send a message to the other arduino informing that it wants to read the other node led on value
-        send_msg(CONF_READ_YOUR_LED, my_address, 0, 0);
-      }
-    }
-  }*/
 
 /*****************************END_OF_CLASS***********************************/
 
@@ -609,12 +553,12 @@ ISR(TIMER1_COMPA_vect){
 
   /**************************************************************************
   
-        Function:
+        Function: consensus
   
-        Arguments:
+        Arguments: Illuminance level desired 
         Return value:
   
-        Description: )
+        Description: Implements the distributed consensus algorithm
   
   **************************************************************************/
 void consensus_class::concensus(float lumi_desire){
@@ -673,10 +617,7 @@ void consensus_class::concensus(float lumi_desire){
       }else if (node.d[1] >= 100){
           dtostrf(node.d[1],6,2,char_d1);
       }
-      //Serial.println("56");
       
-      
-
       
       //send a message with the updated data
       send_msg(SEND_RESULT, my_address, node.d[0], node.d[1], 2);
@@ -703,12 +644,12 @@ void consensus_class::concensus(float lumi_desire){
   
   /**************************************************************************
   
-        Function:
+        Function: primal_solve
   
-        Arguments:
+        Arguments: structure that contains the data of a node
         Return value:
   
-        Description: )
+        Description: Implements the first stage of the algorithm, the primal solve
   
   **************************************************************************/
   void consensus_class::primal_solve(node_class node){
@@ -895,12 +836,14 @@ void consensus_class::concensus(float lumi_desire){
   
   /**************************************************************************
   
-        Function:
+        Function: check_feasibility
   
-        Arguments:
-        Return value:
+        Arguments: structure that contains the information of the node and the 
+                    solutions determined 
+                    
+        Return value: 1 if it's feasible and 0 if not
   
-        Description: )
+        Description: Checks whether a solution is feasible or not
   
   **************************************************************************/
   int consensus_class::check_feasibility(node_class no, float dr[2]){
@@ -927,12 +870,14 @@ void consensus_class::concensus(float lumi_desire){
   
   /**************************************************************************
   
-        Function:
+        Function: evaluate_cost
   
-        Arguments:
-        Return value:
+        Arguments: structure that contains the information of the node and the 
+                    solutions determined 
+        Return value: value of the cost function
   
-        Description: 
+        Description: Determines the value of the cost function associated with 
+                     the solution
   
   **************************************************************************/
   float consensus_class::evaluate_cost(node_class no, float dr[2]){
@@ -964,14 +909,19 @@ void consensus_class::concensus(float lumi_desire){
 
 type                  purpose
 READ_MY_LED           inform all the nodes to read the sender ledON value
-READ_YOUR_LED         inform a node that another node wants to read its ledON value
 CONF_READ_YOUR_LED    inform that a node read the ledON value of the receiving node
 DONE_READ             inform calibration is finish
+NEW_NODE              informs that the node is trying to enter the network
+NODE_HERE             informs that the node is already in the network
 
 SEND_RESULT           send the values of consensus algorithm
 
 -other messeges:
-  - from the arduino to raspberry pi: update the database
+  - from the arduino to raspberry pi: 
+
+F                     Send information about the calibration process 
+C                     Send information that comes from the new consensus result 
+I                     Send information related with the measures of the system 
 
 .**************************************************************************/
 
@@ -979,12 +929,12 @@ SEND_RESULT           send the values of consensus algorithm
 
 /**************************************************************************
 
-      Function:
+      Function: receive_msg
 
-      Arguments:
+      Arguments: Number of bytes that make the message
       Return value:
 
-      Description: )
+      Description: Callback for when a message is sent to this arduino 
 
 **************************************************************************/
 void receive_msg(int numBytes){
@@ -1036,10 +986,6 @@ void receive_msg(int numBytes){
 
     d_neigh[0] = Bytes2float(num_d1_msg);
     
-    //num_d1_msg[c] = '\0';    
-    //d_neigh[0] = atof(num_d1_msg);
-
-    //j ++;
     c = 0;
  
    while(j != 12){
@@ -1049,8 +995,6 @@ void receive_msg(int numBytes){
     }
 
     d_neigh[1] = Bytes2float(num_d2_msg);
-    //num_d2_msg[c] = '\0'; 
-    //d_neigh[1] = atof(num_d2_msg);
     
     flag_consensus = true;
   } else if(strcmp(type_msg, TURN_ON_CONSENSUS) == 0) {
@@ -1059,11 +1003,21 @@ void receive_msg(int numBytes){
     flag_increase_nodes = true;
   } else if(strcmp(type_msg, NEW_NODE) == 0){
     flag_calib = true;
-    //Serial.println(node_n);
   }
 
 }
 
+/**************************************************************************
+
+      Function: send_msg
+
+      Arguments: Message type, data to send and destiny address
+      Return value:
+
+      Description: Send a message to an arbitray address of the types presented 
+                   in the protocol
+
+**************************************************************************/
 
 void send_msg(const char type[3], int add, float d0, float d1, int dest_address){
   byte to_float[4];
@@ -1114,6 +1068,16 @@ void send_msg(const char type[3], int add, float d0, float d1, int dest_address)
   }
 }
 
+/**************************************************************************
+
+      Function: float2Bytes
+
+      Arguments: Value to be transformed and vector to store it
+      Return value:
+
+      Description: Transforms a float value in a set of bytes
+
+**************************************************************************/
 
 void float2Bytes(float val, byte * bytes_array){
   // Create union of shared memory space
@@ -1128,6 +1092,16 @@ void float2Bytes(float val, byte * bytes_array){
   memcpy(bytes_array, u.temp_array, 4);
   
 }
+
+/**************************************************************************
+
+      Function: Bytes2Float
+
+      Arguments: Set of bytes to transform
+
+      Description: Transforms a set of bytes in a a float value
+
+**************************************************************************/
 
 float Bytes2float(char* to_conv){
   // Create union of shared memory space
@@ -1145,16 +1119,14 @@ float Bytes2float(char* to_conv){
   return u.float_variable;
   
 }
+
 /**************************************************************************
 
-      Function:
+      Function: send_data_to_rasp
 
-      Arguments:mode
-                  - mode=false -> no need to send the reference lux value
-                  - mode=true ->  need to send the reference lux value
-      Return value:
+      Arguments: type of message
 
-      Description: )
+      Description: Send message to raspberry pie
 
 **************************************************************************/
 
@@ -1236,32 +1208,6 @@ void send_data_to_rasp(const char T){
       
       break;
   }
-}
-
-
-void print_msg(byte to_send[14]) {
-  float time_send, meas_lux, ref_lux;
-  char aux[4];
-  
-  Serial.println(int (to_send[0]));
-
-  aux[0] = to_send[5];
-  aux[1] = to_send[6];
-  aux[2] = to_send[7];
-  aux[3] = to_send[8];
-  
-  meas_lux = Bytes2float(aux);
-
-  aux[0] = to_send[10];
-  aux[1] = to_send[11];
-  aux[2] = to_send[12];
-  aux[3] = to_send[13];
-  
-  ref_lux = Bytes2float(aux);
-  
-  Serial.println(meas_lux);
-  Serial.println(ref_lux);
-  
 }
 
 /***************************************************************************
@@ -1627,7 +1573,7 @@ void controller::control_interrupt(){
 
 /**************************************************************************
 
-      Function: controller ()
+      Function: individual_controller ()
 
       Arguments: No arguments
       Return value: No return value
@@ -1670,23 +1616,6 @@ void acquire_samples(){
 
 /**************************************************************************
 
-      Function: loop()
-
-      Arguments: No arguments
-      Return value: No return value
-
-      Description:
-
-**************************************************************************/
-void new_consensus_result(){
-  
-  acquire_samples();
-  send_data_to_rasp(true);
-  
-}
-
-/**************************************************************************
-
       Function: print_results()
 
       Arguments: No arguments
@@ -1702,8 +1631,6 @@ void print_results(){
     Serial.print(v_obs);
     Serial.print(" ");
     Serial.print(convert_lux_V(ill_des));
-    Serial.print(" ");
-    Serial.print(u_des);
     Serial.print("\n");
     
   }
@@ -1713,10 +1640,6 @@ void print_results(){
     Serial.print(convert_V_lux(v_obs));
     Serial.print(" ");
     Serial.print(ill_des);
-    Serial.print(" ");
-    Serial.print(u_des);
-    Serial.print(" ");
-    Serial.print(millis());
     Serial.print("\n");
   }
 
@@ -1778,12 +1701,8 @@ void loop() {
   if (flag_turn_consensus) {
     algoritm_consensus.concensus(ill_des);
     flag_turn_consensus = false;
-    //Serial.println("end");
-    
   }
 
- 
-  
   if (toggle) {
     //toggle is HIGH
 
@@ -1795,17 +1714,15 @@ void loop() {
       dz = 1;
       toggle_ant = HIGH;
       
-      //sprintf(str_send, "%s", TURN_ON_CONSENSUS);
       if(!alone && !individual) {
+        //Ask for consensus
         send_msg(TURN_ON_CONSENSUS, my_address, 0, 0, 2);
         algoritm_consensus.concensus(ill_des);
         send_data_to_rasp('C');
       } 
-      //delay(10);
-      //Serial.println("end");
-      
-      //Serial.println("end");
     }
+
+    //When only one node is in the network only the local controller is used
     if (alone || individual) control.individual_controller();
     acquire_samples();
     change_led(u_des);
@@ -1820,17 +1737,11 @@ void loop() {
       dz = 1;
       toggle_ant = LOW;
 
-      //sprintf(str_send, "%s", TURN_ON_CONSENSUS);
       if(!alone && !individual){
         send_msg(TURN_ON_CONSENSUS, my_address, 0, 0, 2);
         algoritm_consensus.concensus(ill_des);
         send_data_to_rasp('C');
       } 
-      //Serial.println("end");
-      
-      
-      
-      //Serial.println("end");
     }
    
       
@@ -1841,11 +1752,7 @@ void loop() {
   }
 
   if (flag_send_to_rasp){
-    if(c > 100) {
-      send_data_to_rasp('I');
-      c = 0;
-    }
-    c++;
+    send_data_to_rasp('I');
     flag_send_to_rasp = false;
   }
 
@@ -1855,27 +1762,16 @@ void loop() {
     node_n++;
     gain[0] = 0;
     gain[1] = 0;
+    
     nodes[orig_addr-1] = 1;
     calib.advertise_presence();
     calib.calibrate();
     gain[0] = (read_lux(gain[0]) - read_lux(Vnoise))/255;
     gain[1] = (read_lux(gain[1]) - read_lux(Vnoise))/255;
-    //Serial.println(gain[0]);
-    //Serial.println(gain[1]);
     
-    Serial.println(gain[0]);
-    Serial.println(gain[1]);
-    Serial.println(read_lux(Vnoise));
     flag_calib = false;
   }
-  /*rate = analogRead(sensorPin);
-  Serial.print(read_lux(rate));
-  Serial.print(" ");
-  Serial.print(ill_des);
-  Serial.print("\n");*/
 
-  if(ct2%3 == 0) print_results();
-  ct2++;
-
+  print_results();
 
 }

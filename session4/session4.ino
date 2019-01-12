@@ -69,12 +69,12 @@ float dz;
 
 //Debug and demonstration
 String inChar; //string to read anf input
-int flag_wdp = 1; //(des)activate windup function
-int flag_pro = 1; //(des)activate proportional controler
-int flag_int = 1; //(des)activate integral controler
+int flag_wdp = 0; //(des)activate windup function
+int flag_pro = 0; //(des)activate proportional controler
+int flag_int = 0; //(des)activate integral controler
 int flag_ff = 1; //(des)activate feedforward
-int flag_dz = 1; //(des)activate deadzone function
-int flag_fl = 1; //(des)activate flickering function
+int flag_dz = 0; //(des)activate deadzone function
+int flag_fl = 0; //(des)activate flickering function
 int flag_dv = 0; //(des)activate demonstration/print of tension
 int flag_dl = 1; //(des)activate demonstration/print of luminance
 int flag_dg = 0; //(des)activate demonstration/print of gain
@@ -547,8 +547,11 @@ void control_interrupt(){
 
   t2 = t1;
   t1 = micros();
-  
+  //Serial.println(t1);
+  //Serial.print(" ");
   u_fb = feedback_control(lux_des, lux_obs);
+
+  
   u_des = u_fb + u_ff;
 
   //flickering effect
@@ -563,7 +566,12 @@ void control_interrupt(){
     u_des = 0;
   }
 
+  //t1 = micros() - t1;
+  //Serial.println(t1);
+  
   u_ant = u_des;
+
+  
 
   
 }
@@ -662,10 +670,13 @@ void print_results(){
   }
 
   if (flag_dl){
+
     
     Serial.print(convert_V_lux(v_obs));
     Serial.print(" ");
     Serial.print(ill_des);
+    Serial.print(" ");
+    Serial.print(lux_des);
     Serial.print(" ");
     Serial.print("\n");
   }
@@ -724,11 +735,14 @@ void print_results(){
 **************************************************************************/
 void loop()
 {
-  taux = micros();
+  //taux = micros();
   set_flags();
   verify_toggle();
  
- 
+  if(c == 500) {
+    toggle = !toggle;
+    c = 0;
+  }
 
   if (toggle) {
     //toggle is HIGH
@@ -736,7 +750,7 @@ void loop()
     if (!toggle_ant) {
       v_i = analogRead(sensorPin) / 204.6;
       t_change = micros();
-      ill_des = 50;
+      ill_des += 10;
       dz = 1;
       toggle_ant = HIGH;
       
@@ -752,7 +766,7 @@ void loop()
     if (toggle_ant) {
       v_i = analogRead(sensorPin) / 204.6;
       t_change = micros();
-      ill_des = 20;
+      ill_des += 10;
       dz = 1;
       toggle_ant = LOW;
       }
@@ -764,6 +778,6 @@ void loop()
   }
   c++;
   print_results();
-  taux = micros() - taux;
-  Serial.println(taux);
+  //taux = micros() - taux;
+  //Serial.println(taux);
 }
